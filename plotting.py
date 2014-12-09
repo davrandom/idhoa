@@ -1,4 +1,3 @@
-from constants import *
 from functions import PlotOverSphere
 import sys
 import numpy as np
@@ -50,20 +49,22 @@ def Polar(title,angle,*variables):
     rect.set_facecolor('w')
     
     colorlist = ['k','r','g','c','m','y','b','w']
-    stylelist = ['dashdot','dashed','solid']
+    stylelist = ['dashdot','dashed','solid','solid','dashed','dashdot']
     i=0
+    maximum = 1.2
     for var in variables:
-		if type(var)!=tuple: ax.plot(angle, var, color=colorlist[i], linestyle=stylelist[i], linewidth=4)
+		if type(var)!=tuple: ax.plot(angle, var, color=colorlist[i], linestyle=stylelist[i], linewidth=4); maximum = max(max(var)+0.15,maximum)
 		if type(var)==tuple: leg=var
 		i+=1
         
-    ax.set_rmax(1.2)
+    ax.set_rmax(maximum)
     plt.grid(True)
     
     plt.legend( leg, loc = 'upper right', bbox_to_anchor = (1.125, 1.13))
     
     ax.set_title(title, fontsize=20)
     plt.show()
+    title = title.split(" ",1)[0]
     fig.savefig(str(DEG)+"-"+str(DEC)+"-"+title+".eps")
 
 
