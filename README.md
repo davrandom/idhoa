@@ -11,10 +11,11 @@ IDHOA it is a small program that generates the Ambisonics decoding coefficients 
 (At the moment not for 2D/planar layouts, only for 3D ones)
 
 It is made of four python files with different purposes:
--- constants.py - contains all the initialization parameters and constants
--- functions.py - contains all the accessory functions 
+-- example.ini - contains all the initialization parameters and constants
+-- auxiliary.py - contains all the auxiliary functions used by the other python scripts
+-- functions.py - contains all the functions for building the objective function
 -- plotting.py - contains only the plotting functions
--- main.py - is the main program that uses constants from constants.py and calls functions from functions.py and plotting.py
+-- main.py - is the main program that uses constants read by constants.py from example.ini and calls functions from functions.py and plotting.py
 
 
 
@@ -57,7 +58,7 @@ In Ubuntu and Debian:
 
 
 ## How to use IDHOA ##
-1. First you have to modify constants.py to fit your needs.
+1. First you have to modify example.ini to fit your needs (you can rename it as you wish).
 
 * Information that you have to provide
 The angular coordinates (theta and phi) of the loudspeakers, in the usual acoustics reference frame.
@@ -82,7 +83,7 @@ The angular coordinates (theta and phi) of the loudspeakers, in the usual acoust
 
             4. DEG - the degree of ambisonics decoding you want
 
-            5. SEED - gives the initial number to the function that generates the evaluation point over the sphere. A reasonable number is between 14 and 20. (You get between 245 and 503 points over the sphere respectively) 
+            5. SEED - gives the initial number to the function that generates the evaluation point over the sphere. A reasonable number for a 3D layout is between 14 and 20. (You get between 245 and 503 points over the sphere respectively). For a 2D layout you can put something like 60.  
 
 
     * Flags
@@ -114,17 +115,19 @@ The most important part is the MINIMIZATION section.
 
 
 3. The objective function.
-The objective function is defined in functions.py and it is called "function". [...] I'll write more on this, but for the moment you can have a look at [this](http://www.aes.org/e-lib/browse.cfm?elib=16818)
+The objective function is defined in functions.py and it is called "function". We released a paper with a bunch of details on how (and a bit why) the objective function is built [here](http://www.aes.org/e-lib/browse.cfm?elib=17364).
 
+4. HOW TO RUN IDHOA
+From command line interface:
+python main.py example.ini
 
-
+You should start to see some plots: the first showing your layout in spherical coordinates (with radius 1). If you are satisfied, close it.
+Then, if you choose WBIN or AUTOREM, you will see the points used to measure the objective function. If you are satisfied, close it.
+Then you should start to see some other plots appearing showing the performance of the naive decoding. Now the program is running, and you have to wait for the minimization results. This may last from fractions of a second (simple 2D layouts) to minutes (crazy irregular 3D layouts ;) ).
 
 ## Utility generatingambdecpreset.pl ## 
 
-This utility generates an ambdec preset given an header file and two coefficient files.
-The header contains the usual preambleof ambdec configuration files, /description, /version, /dec\*, /opt\* and /speakers/.
-The coefficients files are the output of IDHOA. The first file is used for lowfrequencies and the second is used for high frequency matrix.
-
+Has been removed, but I'm working on a python version of it (more flexible).
 
 
 ## Troubleshooting ##
