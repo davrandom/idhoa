@@ -247,7 +247,6 @@ if DEC!='basic':
 if DEC=='basic':
     Polar("Horizontal",phi[theta==0.],pressure[theta==0.],Vradial[theta==0.],Vtang[theta==0.],('pressure','velocity L','velocity T'))
 
-
 if nD == '3D':
     if DEC!='basic':
         Polar("Vertical",theta[phi==0],energyD[phi==0],Jradial[phi==0],Jtang[phi==0],('energy','intensity L','intensity T'))
