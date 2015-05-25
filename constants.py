@@ -4,6 +4,9 @@
 * Copyright (C) 2013 Barcelona Media - www.barcelonamedia.org
 * (Written by Davide Scaini <davide.scaini@barcelonamedia.org> for Barcelona Media)
 *
+* The clone https://github.com/davrandom/idhoa and its modifications are under
+* Copyright (C) 2014 Davide Scaini <davide.scaini@upf.edu>
+*
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
 * the Free Software Foundation; either version 2 of the License, or
