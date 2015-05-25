@@ -5,19 +5,19 @@ Software for Decoding of High Order Ambisonics to Irregular Layouts
 
 (C) 2014 Davide Scaini
 
-## What is IDHOA? ##
 
+## What is IDHOA? ##
 
 IDHOA it is a small program that generates the Ambisonics decoding coefficients for irregular layouts up to fifth order. 
 (At the moment not for 2D/planar layouts, only for 3D ones)
 
-It is made of four python files with different purposes:
--- example.ini - contains all the initialization parameters and constants
+It is made of a collection of python scripts with different purposes:
+-- init_files/ - (folder) contains some examples for configuration files
+-- constants.py - parses the initialization files
 -- auxiliary.py - contains all the auxiliary functions used by the other python scripts
 -- functions.py - contains all the functions for building the objective function
 -- plotting.py - contains only the plotting functions
 -- main.py - is the main program that uses constants read by constants.py from example.ini and calls functions from functions.py and plotting.py
-
 
 
 ## Warning ##
@@ -34,6 +34,7 @@ In principle you can use your favorite minimization library, after proper adapta
 I tried several minimization libraries and I ended up using nlopt because it is fast enough and has a well documented api for python. [NLopt python reference.](http://ab-initio.mit.edu/wiki/index.php/NLopt_Python_Reference)  (note: in my code the implementation of constraints is still missing)
 It might be that in the future I will move to something like minuit (faster? better handling of constraints?).
 
+
 ### How to install nlopt ###
 [NLopt wiki: Installation](http://ab-initio.mit.edu/wiki/index.php/NLopt_Installation)
 "By default, NLopt compiles as a static library. This means that each program you link to NLopt will make a separate copy of the library, which wastes a little disk space. The alternative is to compile NLopt as a shared library (also called a dynamic-link library)."
@@ -47,6 +48,7 @@ and then
 
 as usual.
 
+
 ### Python dependancies ###
 The code depends on three python libraries: scipy, numpy, matplotlib.
 
@@ -55,7 +57,6 @@ http://www.scipy.org/install.html
 In Ubuntu and Debian:
 
     sudo apt-get install python-numpy python-scipy python-matplotlib ipython ipython-notebook python-pandas python-sympy python-nose 
-
 
 
 ## How to use IDHOA ##
@@ -102,8 +103,6 @@ The angular coordinates (theta and phi) of the loudspeakers, in the usual acoust
 
         7. WAUTOREM - performs almost the same operation that AUOTREM does but using weights into the objective function. This way -if you modify the weight coefficients in "function" inside functions.py- you can adjust the weight that you give to the missing area (does this have any advantage? maybe). If you just want to remove the uncovered area then it's faster to use AUTOREM.
 
-
-
 2. Then you might want to have a look at the most important parts of the main.py
 The most important part is the MINIMIZATION section.
 * a "while" loop repeats the minimization process until some condition is met (this if AUTOREM flag is true). Why? Because AUTOREM tries to set to zero small coefficients after the minimization process. Then we perform the minimization another time, to be sure that the other coefficients adjust to the new added constraint ... and maybe some other coefficient will become small enough to be neglected.
@@ -112,8 +111,6 @@ The most important part is the MINIMIZATION section.
     Then you ask nlopt to minimize the objective function called "function" (defined in functions.py), and some parameters are set (just follow the [instructions](http://ab-initio.mit.edu/wiki/index.php/NLopt_Python_Reference))
     * The (ambisonics) coefficient values are bounded to [-1,1] interval. And are put to zero if they are smaller than 3\*10e-4. This can happen if they are on a node of a SH or if the result of the minimization (\>=second loop) gives a "close to zero" value.
     * "exit condition" This condition is the one that breaks the loop. It might depend on the type of algorithm that you use (not all of them are completely deterministic). For the LN\_SBPLX I choose to exit the program when the value of the objective function is exactly the same as the previous loop. Or if the value of the objective function increased more than 1 in the last loop (then you might want to carefully check what is happening to your particular minimization, something wrong is happening). (Note: indeed it is not impossible at all that the value of the objective function increases during the process of putting to zero some coefficients)
-
-
 
 3. The objective function.
 The objective function is defined in functions.py and it is called "function". We released a paper with a bunch of details on how (and a bit why) the objective function is built [here](http://www.aes.org/e-lib/browse.cfm?elib=17364).
@@ -125,6 +122,7 @@ python main.py example.ini
 You should start to see some plots: the first showing your layout in spherical coordinates (with radius 1). If you are satisfied, close it.
 Then, if you choose WBIN or AUTOREM, you will see the points used to measure the objective function. If you are satisfied, close it.
 Then you should start to see some other plots appearing showing the performance of the naive decoding. Now the program is running, and you have to wait for the minimization results. This may last from fractions of a second (simple 2D layouts) to minutes (crazy irregular 3D layouts ;) ).
+
 
 ## Utility generatingambdecpreset.pl ## 
 
@@ -138,7 +136,6 @@ If, after installing nlopt, the nlopt library is not found you have to execute (
     export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib/
 
 before running the program main.py
-
 
 
 ## Notes ##

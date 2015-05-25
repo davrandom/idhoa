@@ -3,14 +3,8 @@
 '''
 * This file is part of IDHOA software.
 *
-* Copyright (C) December 2014 - Davide Scaini - davide.scaini@upf.edu
-*
 * Copyright (C) 2013 Barcelona Media - www.barcelonamedia.org
 * (Written by Davide Scaini <davide.scaini@barcelonamedia.org> for Barcelona Media)
-*
-* Forked from github.com/BarcelonaMedia-Audio/idhoa in December 2014
-* The copyright of the successive modifications published in github.com/davrandom/idhoa
-* is owned by Davide Scaini only.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -64,6 +58,47 @@ def maxReCoeffs(order):
     return coeffs
 
 
+def basic():
+    g0 = [None]*(DEG+1)
+    g1 = [None]*(DEG+1)
+    for i in range(0,DEG+1):
+        g0[i] = 1.
+        g1[i] = 1.
+    g1[0] = g0[0]
+    return g1
+    
+def maxRe(phi):
+    NUM = len(phi)         # number of speakers
+    g0 = [None]*(DEG+1)
+    g1 = [None]*(DEG+1)
+ 
+    g1p = maxReCoeffs(DEG) 
+    Egm = sum([(2.*i+1.)*g1p[i]**2 for i in range(DEG+1)])
+    g0 = [np.sqrt(NUM/Egm)]*4
+    g1 = [g1p[i]*g0[0] for i in range(len(g1p))]
+    
+    g1[0] = g0[0]
+    return g1
+    
+    
+def phase(phi):
+    NUM = len(phi)         # number of speakers
+    g0 = [None]*(DEG+1)
+    g1 = [None]*(DEG+1)
+ 
+    g0d = np.sqrt(3. *NUM/4.)            # from Dani 1st order Ambisonics
+    g1d = g0d*1./3.                    # from Dani 1st order Ambisonics
+    g1p = [None]*(DEG+1)
+    
+    for i in range(0,DEG+1):
+        g0[i] = np.sqrt(NUM*(2*DEG+1)) / (DEG+1)
+        g1[i] = g0[i]*(mh.factorial(DEG)*mh.factorial(DEG+1)) / float(mh.factorial(DEG+i+1)*mh.factorial(DEG-i))  # note that g1(0) is equal to g0
+        g1p[i]= (mh.factorial(DEG)*mh.factorial(DEG+1)) / float(mh.factorial(DEG+i+1)*mh.factorial(DEG-i))          # just for debugging purposes
+
+    g1[0] = g0[0]
+    return g1
+ 
+
 
 
 def ambisoniC(phi,theta,DEC,DEG,inversion):
@@ -71,7 +106,6 @@ def ambisoniC(phi,theta,DEC,DEG,inversion):
     
     if nD == '3D':
         #things to be initializated
-        g0 = [None]*(DEG+1)
         g1 = [None]*(DEG+1)
         W  = [None]*(len(phi))
         if DEG>=1:
@@ -122,27 +156,25 @@ def ambisoniC(phi,theta,DEC,DEG,inversion):
         ## Calculating the decoding dependent coefficients ##
         #####################################################
         if DEC == 'basic':
-            for i in range(0,DEG+1):
-                g0[i] = 1.
-                g1[i] = 1.
+            g1 = basic()
     
         elif DEC == 'maxRe':
-            g1p = maxReCoeffs(DEG) 
-            Egm = sum([(2.*i+1.)*g1p[i]**2 for i in range(DEG+1)])
-            g0 = [np.sqrt(NUM/Egm)]*4
-            g1 = [g1p[i]*g0[0] for i in range(len(g1p))]
-    
+            g1 = maxRe(phi)
     
         elif DEC == 'phase':
-            g0d = np.sqrt(3. *NUM/4.)            # from Dani 1st order Ambisonics
-            g1d = g0d*1./3.                    # from Dani 1st order Ambisonics
-            g1p = [None]*(DEG+1)
-    
-            for i in range(0,DEG+1):
-                g0[i] = np.sqrt(NUM*(2*DEG+1)) / (DEG+1)
-                g1[i] = g0[i]*(mh.factorial(DEG)*mh.factorial(DEG+1)) / float(mh.factorial(DEG+i+1)*mh.factorial(DEG-i))  # note that g1(0) is equal to g0
-                g1p[i]= (mh.factorial(DEG)*mh.factorial(DEG+1)) / float(mh.factorial(DEG+i+1)*mh.factorial(DEG-i))          # just for debugging purposes
-                
+            g1 = phase(phi)
+
+        elif DEC == 'mixed':
+            g1b = basic()
+            g1m = maxRe(phi)
+            g1p = phase(phi)
+            if DEC > 2:
+                # for 3rd order 0th and 1st orders are basic, 2nd order should be maxRe, and 3rd should be inphase
+                g1 = np.concatenate([g1b[0:4],g1m[4:(DEG)**2],g1p[(DEG)**2:(DEG+1)**2]],axis=0)
+            if DEC > 3:
+                # for 3rd order 0th and 1st orders are basic, 2nd and 3rd ... unitl maxorder-1 orders should be maxRe, and last order should be inphase
+                g1 = np.concatenate([g1b[0:4],g1m[4:4**2],g1p[4**2:(DEG+1)**2]],axis=0)
+
     
         else:
             sys.exit('Decoding scheme unknow: ', DEC, ' Possible ones are: basic, maxRe, phase')
@@ -208,7 +240,7 @@ def ambisoniC(phi,theta,DEC,DEG,inversion):
                 c35[i] = np.sqrt(11.)* 3./16.*np.sqrt(77.)* np.cos(5.*phi[i])*np.cos(theta[i])**5  /NUM;  # (5, 5)
     
             if DEG>6:
-                print "DEG =",DEG," is not implemented yet\n"
+                raise ValueError("DEG =",DEG," is not implemented yet\n")
     
      
     
@@ -233,7 +265,6 @@ def ambisoniC(phi,theta,DEC,DEG,inversion):
     
         ### MULTIPLYING FOR THE SELECTED DECODING SCHEME
         coeff = np.empty(coeffs.shape,dtype=np.float64)
-        g1[0] = g0[0]
         for i in range(DEG+1):
             for jj in range(i**2,(i+1)**2):
                 coeff[jj]=g1[i]*coeffs[jj]
@@ -245,6 +276,7 @@ def ambisoniC(phi,theta,DEC,DEG,inversion):
     ## horizontal Ambisonics only ##
     ################################
     if nD == '2D':
+
         #things to be initializated
         g0 = [None]*(DEG+1)
         g1 = [None]*(DEG+1)
@@ -288,7 +320,7 @@ def ambisoniC(phi,theta,DEC,DEG,inversion):
     
     
         elif DEC == 'phase':
-            g1p = [( mh.factorial(DEG)**2 / float(mh.factorial(DEG+i)*mh.factorial(DEG-i) ) ) for i in range(0,DEG+1)] # ok
+            g1p = [( mh.factorial(DEG)**2 / float(mh.factorial(DEG+i)*mh.factorial(DEG-i) ) ) for i in range(0,DEG+1)] # okf
             Eg1p= g1p[0]**2 + 2.0* sum([g1p[i]**2 for i in range(1,DEG+1) ]) 
             g0[0]  = np.sqrt(float(NUM)/Eg1p)
             g1 = [x * g0[0] for x in g1p]
@@ -308,6 +340,7 @@ def ambisoniC(phi,theta,DEC,DEG,inversion):
 
         ##########################################
         ## Calculating the "naive" coefficients ##
+        ## in the N2D convention! careful!      ## 
         ##########################################
         for i in range(0,len(phi)):
             if DEG>=0:
@@ -321,13 +354,13 @@ def ambisoniC(phi,theta,DEC,DEG,inversion):
     
             if DEG>=2:
                 # 2nd order
-                V[i] = np.sqrt(2.)* np.cos(2.*phi[i])/NUM;
-                U[i] = np.sqrt(2.)* np.sin(2.*phi[i])/NUM; 
+                U[i] = np.sqrt(2.)* np.cos(2.*phi[i])/NUM;
+                V[i] = np.sqrt(2.)* np.sin(2.*phi[i])/NUM; 
     
             if DEG>=3:
                 # 3rd order
-                Q[i] = np.sqrt(2.)* np.cos(3.*phi[i])/NUM;
-                P[i] = np.sqrt(2.)* np.sin(3.*phi[i])/NUM;
+                P[i] = np.sqrt(2.)* np.cos(3.*phi[i])/NUM;
+                Q[i] = np.sqrt(2.)* np.sin(3.*phi[i])/NUM;
     
             if DEG>=4:
                 # 4th order
@@ -399,7 +432,7 @@ def ambisoniC(phi,theta,DEC,DEG,inversion):
                     coeff[jj]=g1[i]*coeffs[jj]
      
  
-        # at the end, please return something ;)
+    # at the end, please return something ;)
     return coeff
 
 
@@ -638,31 +671,57 @@ def function(VarCoeffSpk,*args):
 
 
     if DEC=='basic':
-        Tpressure = ((1.-pressure)**2*Wj)/NPOINTS
+        Tpressure = ((1.-pressure)**2*Wj*Mj)/NPOINTS
         TVlon = ((1.-Vradial)**2*Wj*Mj)/NPOINTS
         TVtang = ((Vtang)**2*Wj*Mj)/NPOINTS
         Tvar = 0
-        if PREFHOM:
-            Tvar = np.var(VarCoeffSpk[0])/(np.mean(VarCoeffSpk[0]))**2
+        Tpressure2 = 0
+        TVlon2 = 0
+        TVtang2 = 0
         
-        target = np.sum(CP*Tpressure +  CR*TVlon + CT* TVtang) + CV*Tvar 
-        # one sum instead of three (in Tpressure, TVlon,...)
-        # anyway norm is (much) faster...
-
-    elif DEC=='maxRe':
-        TenergyD = ((1.-energyD)**2*Wj)/NPOINTS
+        TenergyD = ((1.-energyD)**2*Wj*Mj)/NPOINTS
         #TenergyD = ((1.-energyD)**2*Wj*Mj*2)/NPOINTS
         TJrad = ((1.-Jradial)**2*Wj*Mj)/NPOINTS
         TJtang = ((Jtang)**2*Wj*Mj)/NPOINTS
+ 
+        if PREFHOM:
+            Tvar = np.var(VarCoeffSpk[0])/(np.mean(VarCoeffSpk[0]))**2
+            
+        if (WAUTOREM or WBIN):
+            Tpressure2 = (~WremVec)*((0.5-pressure)**2*Wj)/NPOINTS # Pressure -3 dB 
+            TVlon2 = (~WremVec)*((1.-Vradial)**2*Wj)/NPOINTS
+            TVtang2 = (~WremVec)*((Vtang)**2*Wj)/NPOINTS
+
+        
+        target = np.sum( CP*(Tpressure + Tpressure2 ) +
+                    + CR*(TVlon + 0.1*TVlon2) 
+                    + CT*(TVtang + 0.1*TVtang2)
+                    + CPH*TJrad + CPH*TJtang + CPH*TenergyD ) + CV*Tvar
+        #TODO: convert the hardcoded numbers into parameters
+        #                                    introduced this term | here
+        # one sum instead of three (in Tpressure, TVlon,...)
+        # anyway norm is (much) faster...
+
+    elif DEC=='maxRe' or DEC=='mixed':
+        TenergyD = ((1.-energyD)**2*Wj*Mj)/NPOINTS
+        TJrad = ((1.-Jradial)**2*Wj*Mj)/NPOINTS
+        TJtang = ((Jtang)**2*Wj*Mj)/NPOINTS
         Tvar = 0
-        TJrad2 = np.ones(coeffDir.shape[1])
+        TJrad2 = 0
+        TenergyD2 = 0
+        TJtang2 = 0
         if PREFHOM:
             Tvar = np.var(VarCoeffSpk[0])/(np.mean(VarCoeffSpk[0]))**2
         if (WAUTOREM or WBIN):
-            TJrad2 = TJrad2*(~WremVec)*((Jradial)**2*Wj)/NPOINTS
+            TenergyD2 = (~WremVec)*((0.5-energyD)**2*Wj)/NPOINTS # Energy -3 dB 
+            TJrad2 = (~WremVec)*((1.-Jradial)**2*Wj)/NPOINTS
+            TJtang2 = (~WremVec)*((Jtang)**2*Wj)/NPOINTS            
             # ~array : negation of an array of bools
+
+            
         
-        target = np.sum(CE*TenergyD +  CR*TJrad + CT*TJtang + TJrad2) + CV*Tvar 
+        target = np.sum(CE*(TenergyD + TenergyD2) +  CR*(TJrad + 0.1*TJrad2) + CT*(TJtang + 0.1*TJtang2) )  + CV*Tvar 
+        #TODO: convert the hardcoded numbers into parameters 
         
         #TenergyD = np.linalg.norm((1.-energyD)*Wj)**2/NPOINTS
         #TJrad = np.linalg.norm((1.-Jradial)*Wj*Mj)**2/NPOINTS

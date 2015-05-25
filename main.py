@@ -3,14 +3,8 @@
 '''
 * This file is part of IDHOA software.
 *
-* Copyright (C) December 2014 - Davide Scaini - davide.scaini@upf.edu
-*
 * Copyright (C) 2013 Barcelona Media - www.barcelonamedia.org
 * (Written by Davide Scaini <davide.scaini@barcelonamedia.org> for Barcelona Media)
-*
-* Forked from github.com/BarcelonaMedia-Audio/idhoa in December 2014
-* The copyright of the successive modifications published in github.com/davrandom/idhoa
-* is owned by Davide Scaini only.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -32,6 +26,7 @@
 
 import numpy as np
 import math as mh
+from scipy import linalg
 import sys
 import nlopt
 # on Mac:
@@ -83,7 +78,6 @@ start = time.time()
 coeffDir = ambisoniC(phiTest,thetaTest,'basic',DEG,0) # calculating ambisonics coefficients in test directions
 Guess0 = ambisoniC(PHI,THETA,DEC,DEG,0)     # initial guess
 GuessPinv = ambisoniC(PHI,THETA,DEC,DEG,1)     # initial guess
-
 
 f0 = function(Guess0,coeffDir[:])
 fPV = function(GuessPinv,coeffDir[:])
@@ -202,7 +196,7 @@ while True:
     #####################
     ## exit condition
     # if (run>0 and (str(prog[run-1])[0:6]==str(prog[run])[0:6] or prog[run]>min(prog)+1)): break # for PRAXIS use this
-    if (run>0 and ("{:7.4f}".format(prog[run-1])=="{:7.4f}".format(prog[run]) or prog[run]>min(prog)+1) or not MUTESPKRS ): break # for SBPLX use this
+    if (run>0 and ("{:7.3f}".format(prog[run-1])=="{:7.3f}".format(prog[run]) or prog[run]>min(prog)+1) or not MUTESPKRS ): break # for SBPLX use this
     run+=1
 
 
@@ -229,11 +223,10 @@ ResCoeff = vtomat(res)
 #np.reshape(res, ((DEG+1)**2,NSPKmatch))
 ResCoeff = upscalematrix(ResCoeff,MATCHED)
 
+print "\nLF matrix\n", GuessPinv.T
+
 print "\nCoefficients \n", ResCoeff.T
 if ResCoeff.T[abs(ResCoeff.T>1.)].any(): print "WARNING: You reached a bad minimum."
-
-
-
 
 ##############################
 ## PLOTTING
@@ -247,6 +240,7 @@ if DEC!='basic':
 if DEC=='basic':
     Polar("Horizontal",phi[theta==0.],pressure[theta==0.],Vradial[theta==0.],Vtang[theta==0.],('pressure','velocity L','velocity T'))
 
+
 if nD == '3D':
     if DEC!='basic':
         Polar("Vertical",theta[phi==0],energyD[phi==0],Jradial[phi==0],Jtang[phi==0],('energy','intensity L','intensity T'))
@@ -254,6 +248,8 @@ if nD == '3D':
         Polar("Vertical",theta[phi==0],pressure[phi==0],Vradial[phi==0],Vtang[phi==0],('pressure','velocity L','velocity T'))
 
 SpeakersPlotting(phi,theta,Jradial)
+
+
 
 print "Elapsed time ", time.time()-start
 
@@ -307,7 +303,9 @@ import scipy.io
 import os.path
 
 scipy.io.savemat(os.path.expanduser(OUTFILE),
-        {'ResCoeff':ResCoeff, 
+        {'ResCoeff':ResCoeff,
+        'Naive':Guess0,
+        'Pinv':GuessPinv,
         'PHI':PHI, 
         'THETA':THETA, 
         'DEC':DEC,

@@ -1,14 +1,8 @@
 '''
 * This file is part of IDHOA software.
 *
-* Copyright (C) December 2014 - Davide Scaini - davide.scaini@upf.edu
-*
 * Copyright (C) 2013 Barcelona Media - www.barcelonamedia.org
 * (Written by Davide Scaini <davide.scaini@barcelonamedia.org> for Barcelona Media)
-*
-* Forked from github.com/BarcelonaMedia-Audio/idhoa in December 2014
-* The copyright of the successive modifications published in github.com/davrandom/idhoa
-* is owned by Davide Scaini only.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -33,6 +27,9 @@ import json
 import numpy as np
 import os
 import sys
+import warnings
+import string
+import math as mh ## this is used only for factorial...
 
 from functions import ambisoniC
 
@@ -104,93 +101,6 @@ def configConst(configfile):
         print 'Could not parse:', err
     
         
-        #######################
-        ## Speakers position ##
-        #######################
-        case = 'studio'
-    
-        if (case=="studio"):
-            # studio
-            PHI = [27.0415460692, 2.04283140615, 332.958453931, 1.03372198009, 90.5036008348, 269.496399165, 166.80995235 , 193.19004765 , 54.0379157019, 302.679984191, 124.309021931, 235.690978069, 92.4265791571, 267.573420843, 35.1695965277, 324.830403472, 15.3392440494, 344.660755951, 30.5463301933, 329.453669807, 143.681356818, 216.318643182, 301.738222232]          # position of the speakers # AZIMUTH
-            THETA = [-1.35939557882, -1.39079054354, -1.35939557882, 25.2255330043 , -2.05829450955, 2.05829450955 , 6.89524790513 , 6.89524790513 , -4.49039914903, -1.34181305608, 2.73330540595 , 2.73330540595 , 27.4212399195 , 27.4212399195 , 21.065228491  , 21.065228491  , -22.9266013259, -22.9266013259, 30.6450023912 , 30.6450023912 , 27.2300782225 , 27.2300782225 , 88.0711642016]        # position of the speakers # ELEVATION
-        
-        elif(case=="CCRMA"):
-            # CCRMA Dome
-            PHI   = [22.500000, 67.500000, 112.500000, 157.500000, -157.500000, -112.500000, -67.500000, -22.500000, 30.000000, 90.000000, 150.000000, -150.000000, -90.000000, -30.000000, 0.000000];
-            THETA = [0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 0.000000, 40.000000, 40.000000, 40.000000, 40.000000, 40.000000, 40.000000, 90.000000];
-        
-        elif(case=="icos"):
-            # icosahedron
-            PHI = [45.0, -45.0,-135.0, 135.0, 45.0, -45.0,-135.0, 135.0, 90.0,  90.0, -90.0, -90.0, 0.0,   0.0, 180.0, 180.0, 69.1, -69.1, 110.9,-110.9]
-            THETA = [35.3, 35.3, 35.3, 35.3,-35.3,-35.3,-35.3,-35.3, 69.1,-69.1, 69.1,-69.1, 20.9,-20.9, 20.9,-20.9, 0.0, 0.0,  0.0, 0.0]
-        
-        elif(case=="CARPA"):
-            # CARPA
-            X = [0., 0., 0., -163, -163,-163, 163, 163, 163, -485, -485, -485, 485, 485, 485]
-            Y = [240, 86, -218, 240, 86, -218, 240, 86, -218, 240, -116, -218, 240., -116, -227]
-            Z = [-3, 348, 281, -3, 348, 281, -3, 348, 281, -24, 213, 7, -24, 213, 7]
-            if len(X) != len(Y): print "Something wrong in CARPA"
-            if len(X) != len(Z): print "Something wrong in CARPA"
-        
-            pts = [(X[a],Y[a],Z[a]) for a in range(len(X))]
-            relp = np.array([aux.cart2sph(x,y,z) for x,y,z in pts])
-        
-            R =  [relp[i][0] for i in range(len(relp))]
-            el =  [relp[i][1] for i in range(len(relp))]
-            az =  [relp[i][2] for i in range(len(relp))]
-        
-            PHI = az
-            THETA = el
-        
-        elif(case=="Karlsruhe"):
-            #Karlsruhe setup 
-            PHI = [-0.2381, 0.4675, -0.5145, -0.1827, 0.2954, -0.3345, 0.163, 0.6278, 0.8405, 1.0381, 1.2482, 1.3916, 1.6292, 1.6912, 1.9513, 2.0034, 2.1096, 2.3073, 2.5128, 2.6254, 2.8467, 3.088, -3.0899, -2.9089, -2.6912, -2.6518, -2.5348, -2.2267, -2.225, -2.007, -1.8741, -1.7502, 0, 0.1626, 0.4083, 0.7239, 1.2337, 1.1019, 1.4266, 1.7326, 1.9609, 2.172, 2.626, 2.7546, -2.9764, 3.1416, 2.9442, -2.4255, -2.3719, -1.9198, -1.5708, -1.4515, -1.036, -0.6246, -0.5373, -0.0837, -1.5126, -1.4486, -1.2073, -1.1685, -0.8848, -0.8347, -0.8199]
-            THETA = [0.1174, 0.1079, -0.2007, -0.2259, -0.22, -0.6564, -0.6413, -0.6439, -0.1307, -0.6366, -0.3503, 0.0475, -0.6406, -0.1268, -0.2497, 0.1671, -0.6385, 0.0049, -0.593, -0.1309, -0.5175, -0.1308, -0.6392, 0.0767, -0.261, -0.6411, 0.029, -0.6084, -0.1019, 0.175, -0.6413, -0.1355, 1.4449, 0.2858, 0.9461, 0.4669, 0.9792, 0.1745, 0.5625, 0.2838, 0.9628, 0.5267, 0.3842, 0.7852, 0.2128, 1.1425, 0.529, 0.3259, 0.7764, 0.5088, 1.0263, 0.3971, 0.5015, 0.9397, 0.4339, 0.6627, -0.6391, -0.039, -0.4489, 0.1024, -0.6441, -0.2665, 0.1452]
-        
-        elif(case=="trirectangle"):
-            #tri-rectangle layout
-            PHI = [30.0, 150.0, 210.0, 330.0, 0.0, 0.0, 90.0, 90.0, 180.0, 180.0, 270.0, 270.0]
-            THETA = [0.0, 0.0, 0.0, 0.0, 30.0, -30.,30.0, -30.,30.0, -30.,30.0, -30.]
-        
-        ################
-        ## Parameters ##
-        ################
-        OUTFILE = '~/Documents/MATLAB/AmbiDecoderToolbox/Karlsruhe_DOME.mat'
-        DEC = 'maxRe' # available: basic, maxRe, phase
-        DEG = 3
-        
-        
-        # parameters
-        SEED = 17   # number of maximum horizontal points in the sampling function (divided by two)
-                    # from 14 to 20 it's a reasonable number
-        
-        # FLAGS
-        MUTESPKRS = 1 # tries to mute "unnecessary" speakers
-        AUTOREM = 0 # removes some points from the sphere sampling (the farthest from the speakers)
-        PREFHOM = 0
-        # weights
-        WFRONT = 0
-        WPLANE = 0
-        WBIN = 1
-        WAUTOREM = 0 # the same as AUTOREM but with weights
-        thetaThreshold = -10 # degrees
-        MATCHSPK = 1
-        MATCHTOL = 5
-     
-        ###################################
-        ## Internals of the minimization ##
-        ###################################
-        CP = 400. # arbitrary coefficients
-        CV = 25.
-        CE = 400.
-        CR = 100.
-        CT = 100.
-        CPH= 1000.
-      
-    
-    
-    
-    
     ## number of speakers
     bt.NSPK = len(bt.PHI)
     
@@ -210,13 +120,13 @@ def configConst(configfile):
 
 
 
-
 #############
 ## weights ##
 #############
 
 def Wfront(phiT,thetaT):
-    wvect = 1. + np.cos(phiT) * np.cos(thetaT)/2.
+    #wvect = 1. + np.cos(phiT) * np.cos(thetaT)/2.
+    wvect = np.cos(phiT)**8 * np.cos(thetaT)**8 /2.
     return wvect
 
 def Wplane(thetaT):
@@ -400,4 +310,246 @@ def MapMatched(matched):
 
     return mapped
 
+def fac2(val) :
+    ## stupid function to calculate factorial2 not to import another library (scipy)
+    if val <= 0: return 1.0
+    else: 
+        tmp = val
+        for ii in range(val,1,-2):
+            if ii < val: tmp = tmp*ii
+
+        return float(tmp)
+
+
+################################################################
+# documentation and tools to change from different conventions #
+################################################################
+class Conventions :
+    # documentation and tools to change from different conventions #
+
+    def ch(self) :
+        # Ambisonic Channel Number by proposed AmbiX standard
+        #  0 (0,0)  W
+        #  1 (1,-1) Y
+        #  2 (1,0)  Z
+        #  3 (1,1)  X
+        #  4 (2,-2) V
+        #  5 (2,-1) T
+        #  6 (2,0)  R
+        #  7 (2,1)  S
+        #  8 (2,2)  U
+        #  9 (3,-3) Q
+        # 10 (3,-2) O
+        # 11 (3,-1) M
+        # 12 (3,0)  K
+        # 13 (3,1)  L
+        # 14 (3,2)  N
+        # 15 (3,3)  P
+        # (up to third order tehre are some assigned letters, and then follows with similar pattern)
+        self.ACN3D = "W Y Z X V T R S U Q O M K L N P"
+        self.ACN2D = "W Y X V U Q P"
+
+
+
+    # conversions
+    # example of use: Y(SN2D) = sn2D.sn3D * Y(SN3D)
+
+    def conv(self) :
+        # look p156 Daniel's thesis
+        # maxn/gerz and furse malham are essentially the same except for the 1/sqrt(2)m in W
+        class N3D :
+            pass
+        n3d = N3D()
+
+        class SN3D :
+            pass
+        sn3d = SN3D()
+
+        class MaxN :
+            pass
+        maxn = MaxN()
+
+        class FuMa :
+            pass
+        fuma = FuMa()
+
+        class SN2D :
+            pass
+        sn2d = SN2D()
+
+        class N2D :
+            pass
+        n2d = N2D()
+
+
+        ### calculations
+        #
+        SN2DSN3D = np.array([])
+        for m in range(self.deg+1):
+            mcoeff = np.sqrt( (2.0**(2*m-1) * np.math.factorial(m)**2 ) / (1.0*np.math.factorial(2*m)) )
+            tmp = [mcoeff for n in range(m**2,(m+1)**2)]
+            SN2DSN3D = np.append(SN2DSN3D,tmp,axis=0)
+        
+        if SN2DSN3D.any() == 0.0: raise ValueError("Conversion between SN3D and N3D failed.")
+
+        #
+        N3DSN3D = np.array([])
+        for m in range(self.deg+1):
+            mcoeff = np.sqrt(2*m+1)
+            tmp = [mcoeff for n in range(m**2,(m+1)**2)]
+            N3DSN3D = np.append(N3DSN3D,tmp,axis=0)
+
+        if N3DSN3D.any() == 0.0: raise ValueError("Conversion between SN3D and N3D failed.")
+        
+        # this is for l=m or l=-m ONLY!!!
+        N2DN3D = np.array([])
+        for m in range(self.deg+1):
+            mcoeff = (mh.factorial(m) * 2**(m-1)) / fac2(2*m+1) # c**(-2) it's the 1/N3D coeff
+            mcoeff = np.sqrt(2.) * np.sqrt(mcoeff)
+            tmp = [mcoeff for n in range(m**2,(m+1)**2)]
+            N2DN3D = np.append(N2DN3D,tmp,axis=0)
+        
+        if N2DN3D.any() == 0.0: raise ValueError("Conversion between SN3D and N3D failed.")
+ 
+
+        #
+        #MAXNtoN3D = np.array([np.sqrt(2), np.sqrt(3), np.sqrt(3), np.sqrt(3), np.sqrt(15)/2, np.sqrt(15)/2, np.sqrt(15), np.sqrt(15)/2, np.sqrt(15)/2, np.sqrt(35./8.), np.sqrt(35)/3, np.sqrt(224./45.), np.sqrt(7), np.sqrt(224./45.), np.sqrt(35)/3, np.sqrt(35./8.)])
+        MAXNtoN3D = np.array([1.0, np.sqrt(3), np.sqrt(3), np.sqrt(3), np.sqrt(15)/2, np.sqrt(15)/2, np.sqrt(5), np.sqrt(15)/2, np.sqrt(15)/2, np.sqrt(35./8.), np.sqrt(35)/3, np.sqrt(224./45.), np.sqrt(7), np.sqrt(224./45.), np.sqrt(35)/3, np.sqrt(35./8.)])
+        ## http://en.wikipedia.org/wiki/Ambisonic_data_exchange_formats
+        MAXNtoN3D = np.resize( MAXNtoN3D,(1,(self.deg+1)**2) ).flatten()
+        if len(MAXNtoN3D) != (self.deg+1)**2: raise ValueError("Conversion between MaxN and N3D is badly implemented: %s vs %s elements." % (len(MAXNtoN3D),(self.deg+1)**2) )
+
+        FUMAtoN3D = MAXNtoN3D*1.0
+        FUMAtoN3D[0] = np.sqrt(2)
+
+        sn2d.sn3d = SN2DSN3D        # not completely correct since 2D exists only for n= m ... TDB
+        sn3d.sn2d = 1.0/SN2DSN3D
+
+        n3d.sn3d = N3DSN3D
+        sn3d.n3d = 1.0/N3DSN3D
+
+        maxn.n3d = MAXNtoN3D
+        n3d.maxn = 1.0/MAXNtoN3D
+
+        fuma.n3d = FUMAtoN3D
+        n3d.fuma = 1.0/FUMAtoN3D    # don't touch it's correct with Daniel's thesis convention p156
+
+
+        ### derived from these
+        n2d.n3d = N2DN3D
+        n3d.n2d = 1.0/N2DN3D
+        #n2d.sn3d sn3d.n3d
+        n2d.fuma = n3d.fuma / n2d.n3d
+        fuma.n2d = 1.0/n2d.fuma
+        #n2d.n3d n3d.fuma
+
+
+        ### filling
+        self.n3d  = n3d 
+        self.sn3d = sn3d 
+        self.maxn = maxn 
+        self.fuma = fuma 
+        self.sn2d = sn2d 
+        self.n2d  = n2d 
+
+
+    def __init__(self,deg) :
+        self.deg = deg
+        self.ch()
+        self.conv()
+
+        if self.deg>3 : warnings.warn("FuMa and MaxN are implementend only up to third order.")
+
+        # I just want to warn, not to raise an exception...
+        # like https://docs.python.org/2/library/warnings.html
+        # or http://stackoverflow.com/questions/3891804/how-to-raise-a-warning-in-python-without-stopping-interrupting-the-program
+
+
+    def shrink(self, vector) :
+        ## reduction of the 2d ones from (deg+1)**2 to 2*deg+1
+        if len(vector) != (self.deg+1)**2 : raise ValueError("Can't shrink this! Wrong dimension.")
+
+        shr = np.asarray([])
+        for ii in range(self.deg+1):
+            aa = ii**2+1   -1
+            bb = (ii+1)**2 -1
+            shr = np.append(shr,vector[aa]) 
+            if aa != bb: shr = np.append(shr,vector[bb])
+
+        return shr
+
+
+
+
+
+class Parser :
+
+    # function for parsing the data
+    def _data_parser(self, text, dic, area):
+        ## ignores all the lines that do not contain as firts word the one carried by "area"
+        ## all the others are processed following the rules in dictionary (dic) 
+        ## the text is then splitted into words and returned as an array
+        tmp = text.split()
+        if len(tmp)>0 and tmp[0] == area :
+            for i, j in dic.iteritems():
+                text = text.replace(i,j)
+            text = text.split()
+            return text
+        else:
+            return None
+    
+
+    def ambdec(self, my_text):
+        ## method that does the actual processing 
+        dic = {'add_spkr':' ','add_row':' ','^I':' '}
+        
+        ## processing the first part of ambdec config file
+        ## where the information on the layout is stored
+        tmp = np.array(["spk_id","dist","az","el","connect"])
+        for line in my_text:
+            layout = self._data_parser(text=line, dic=dic, area="add_spkr")
+            if layout != None: tmp = np.vstack((tmp, layout))
+        
+        self.layout = tmp
+        self.layout_data = tmp[1:,1:4].astype(np.float)
+        
+        ## processing the second part of the ambdec config file
+        ## where the decoding coefficients are stored
+        tmp = np.array([])
+        count = 0
+        for line in my_text:
+            parsed = self._data_parser(text=line, dic=dic, area="add_row")
+            if parsed != None:
+                if count == 0: tmp = parsed; count += 1
+                else:          tmp = np.vstack((tmp,parsed))
+        
+        ## splitting into the two matrices: lf and hf
+        self.lf_mat = tmp[:self.layout_data.shape[0]].astype(np.float)
+        self.hf_mat = tmp[self.layout_data.shape[0]:].astype(np.float)
+        if self.lf_mat.shape != self.hf_mat.shape : raise ValueError("Something went wrong while parsing ambdec file.")
+
+
+    def __init__(self, filename):
+        self.inputfile = open(filename)
+        my_text = self.inputfile.readlines()
+        self.ambdec(my_text)
+
+#### Auxiliary funcitons for evaluation
+
+def analyze_results(vect, varname, dB = None) :
+    mean = np.mean(vect)
+    std = np.std(vect)
+    print "%s mean: %.2f; std: %.2f"%(varname, mean, std)
+    
+    if dB is None:
+        return (mean,std)
+    
+    elif dB == 10 or dB == 20:
+        mean_dB = dB * np.log10(mean)
+        std_dB = dB * np.log10(std)
+        print "%s mean (dB): %.1f; std (dB): %.1f"%(varname, mean_dB, std_dB)        
+        return (mean,std,mean_dB,std_dB)
+
+    else:
+        raise ValueError("dB should either be 10, 20 or None")
 

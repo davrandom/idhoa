@@ -1,0 +1,40 @@
+# AmbDec configuration
+# Written by write_ambdec.py
+
+/description     5.1 idhoa decoder 
+
+/version          3
+
+/dec/chan_mask    b
+/dec/freq_bands   2
+/dec/speakers     2
+/dec/coeff_scale  fuma
+
+/opt/input_scale  fuma
+/opt/nfeff_comp   input
+/opt/delay_comp   off
+/opt/level_comp   off
+/opt/xover_freq    400
+/opt/xover_ratio   0.0
+
+/speakers/{ 
+add_spkr    L    0.020    30.00000    0.00000    system:playback_0
+add_spkr    R    0.020    -30.00000    0.00000    system:playback_1
+/}
+
+/lfmatrix/{
+order_gain     1.00000  1.00000  1.00000  1.00000
+add_row    0.479575   0.771327   0.145900
+add_row    0.479675   -0.771357   0.145701
+/}
+
+/hfmatrix/{
+order_gain     1.00000  1.00000  1.00000  1.00000
+add_row    0.171803   0.513763   0.615841
+add_row    0.171784   -0.513813   0.615815
+/}
+
+
+
+/end
+

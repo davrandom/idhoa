@@ -1,0 +1,47 @@
+# AmbDec configuration
+# Written by Makedec-0.8.0 at Sun Sep  4 22:31:12 2011
+
+/description      Optimised ITU 5.1 decoder found by genetic search.
+
+/version          3
+
+/dec/chan_mask    11b
+/dec/freq_bands   2
+/dec/speakers     5
+/dec/coeff_scale  fuma
+
+/opt/input_scale  fuma
+/opt/nfeff_comp   input
+/opt/delay_comp   off
+/opt/level_comp   off
+/opt/xover_freq    400
+/opt/xover_ratio   0.0
+
+/speakers/{
+add_spkr    LS     1.500    110.0      0.0    system:playback_4
+add_spkr    LF     1.500     30.0      0.0    system:playback_1
+add_spkr    CE     1.500      0.0      0.0    system:playback_3
+add_spkr    RF     1.500    -30.0      0.0    system:playback_2
+add_spkr    RS     1.500   -110.0      0.0    system:playback_5
+/}
+
+/lfmatrix/{
+order_gain     1.00000  1.00000  1.00000  1.00000
+add_row     0.420330  0.330200 -0.312250  0.019350 -0.027010
+add_row     0.197700  0.288820  0.287820  0.049110  0.007420
+add_row     0.058030  0.000000  0.205970  0.000000  0.050790
+add_row     0.197700 -0.288820  0.287820 -0.049110  0.007420
+add_row     0.420330 -0.330200 -0.312250 -0.019350 -0.027010
+/}
+
+/hfmatrix/{
+order_gain     1.00000  1.00000  1.00000  1.00000
+add_row     0.562520  0.273150 -0.216490  0.087300 -0.072220
+add_row     0.327620  0.278030  0.287910  0.194760  0.041400
+add_row     0.193300  0.000000  0.289720  0.000000  0.219660
+add_row     0.327620 -0.278030  0.287910 -0.194760  0.041400
+add_row     0.562520 -0.273150 -0.216490 -0.087300 -0.072220
+/}
+
+
+/end

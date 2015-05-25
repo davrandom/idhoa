@@ -1,14 +1,8 @@
 '''
 * This file is part of IDHOA software.
 *
-* Copyright (C) December 2014 - Davide Scaini - davide.scaini@upf.edu
-*
 * Copyright (C) 2013 Barcelona Media - www.barcelonamedia.org
 * (Written by Davide Scaini <davide.scaini@barcelonamedia.org> for Barcelona Media)
-*
-* Forked from github.com/BarcelonaMedia-Audio/idhoa in December 2014
-* The copyright of the successive modifications published in github.com/davrandom/idhoa
-* is owned by Davide Scaini only.
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -33,6 +27,7 @@ import json
 import numpy as np
 import os
 import sys
+import auxiliary as aux
 
 def configConst(configfile):
 

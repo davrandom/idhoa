@@ -1,4 +1,4 @@
-from functions import PlotOverSphere
+from functions import PlotOverSphere, ambisoniC, Sij
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,6 +7,41 @@ from mpl_toolkits.mplot3d import Axes3D
 '''
 * This is not original work, but more a mix of online resources.
 '''
+
+
+def gainsPlot(title,angle,gains,ticks = [-180,-120,-60,0,60,120,180]) : 
+    
+    fig = plt.figure()
+    ax = plt.gca()
+    n = int(angle.size / 2)
+    
+    angle = np.mod(angle.T + np.pi, 2*np.pi) - np.pi 
+    x = 180./np.pi*np.roll(angle,n+1)
+    y = np.roll( gains , n+1, 0)
+    x = np.append(x,-x[0])
+    y = np.vstack((y,y[0,:]))
+    
+    plt.xticks(ticks)
+    rect = fig.patch
+    rect.set_facecolor('w')
+ 
+    ax.set_xlabel('Angle (deg)')
+    ax.set_ylabel('Gains (linear)')
+    ax.set_title(title)
+    ax.grid(linestyle=':')
+    plt.plot([-180,180],[0,0],color='k',linestyle='-')
+    plt.plot([0,0],[-0.4,1.2],color='k',linestyle='-')
+#    ax2 = ax.twinx()
+#    ax2.set_ylabel('Gains (dB)')
+#    ax2.set_yticks([0.501,0.251,0.126,0.063,-0.063,-0.126])
+#    ax2.set_yticklabels([-6, -12, -18, -24, -24, -18])
+    plt.xlim(-180.,180.)
+    plt.ylim(-0.4,1.2)
+#    ax.legend(ticks.T)
+    plt.plot(x,y,linewidth=4)    
+    fig.savefig(title+".eps")
+
+    
 
 def SpherePlotting(title,var):
     fig = plt.figure()
@@ -64,8 +99,14 @@ def Polar(title,angle,*variables):
     
     ax.set_title(title, fontsize=20)
     plt.show()
-    title = title.split(" ",1)[0]
-    fig.savefig(str(DEG)+"-"+str(DEC)+"-"+title+".eps")
+    ti = title.split(" ",1)[0]
+    if len(title.split(" ",1))>1 : 
+        tle = title.split(" ",1)[1]
+        tle = tle.split(",",1)
+        tle = tle[0]+tle[1]
+        fig.savefig(str(DEG)+"-"+str(DEC)+"-"+ti+"_"+tle+".eps")
+    else:
+        fig.savefig(str(DEG)+"-"+str(DEC)+"-"+ti+".eps")
 
 
 def PlSpherePt(NP):
@@ -108,4 +149,3 @@ def PlSpherePtRotat(NP):
 
     if len(phiok)!=len(thetaok): sys.exit("Died generating points on the sphere")
     return phiok, thetaok
-

@@ -1,0 +1,47 @@
+# AmbDec configuration
+# Written by write_ambdec.py
+
+/description     5.1 idhoa decoder 
+
+/version          3
+
+/dec/chan_mask    11b
+/dec/freq_bands   2
+/dec/speakers     5
+/dec/coeff_scale  fuma
+
+/opt/input_scale  fuma
+/opt/nfeff_comp   input
+/opt/delay_comp   off
+/opt/level_comp   off
+/opt/xover_freq    400
+/opt/xover_ratio   0.0
+
+/speakers/{ 
+add_spkr    LS    2.550    110.00000    0.00000    system:playback_4
+add_spkr    LF    1.966    30.00000    0.00000    system:playback_1
+add_spkr    CE    1.730    0.00000    0.00000    system:playback_3
+add_spkr    RF    1.966    -30.00000    0.00000    system:playback_2
+add_spkr    RS    2.604    -110.00000    0.00000    system:playback_5
+/}
+
+/lfmatrix/{
+order_gain     1.00000  1.00000  1.00000  1.00000
+add_row 0.48707632  0.37693929 -0.38638255 -0.12614652  0.        
+add_row 0.15366788  0.30393937  0.17733006  0.24532853 -0.12598366
+add_row 0.13765492  0.          0.44941794  0.          0.25784407
+add_row 0.14908573 -0.30356168  0.15329006 -0.24511248 -0.15075313
+add_row 0.49010985 -0.37730501 -0.37310699  0.12591453  0.0145133 
+/}
+
+/hfmatrix/{
+order_gain     1.00000  1.00000  1.00000  1.00000
+add_row    0.567329   0.423039   -0.315367   -0.063421   -0.029176
+add_row    0.368141   0.272505   0.321209   0.192845   0.048204
+add_row    0.183579   0.000000   0.199588   0.000000   0.096282
+add_row    0.368584   -0.272349   0.321616   -0.192645   0.048260
+add_row    0.567316   -0.422920   -0.315495   0.063449   -0.029238
+/}
+
+/end
+
