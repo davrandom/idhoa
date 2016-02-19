@@ -20,83 +20,133 @@
 '''
 
 
+import os,sys
+lib_path = os.path.abspath(os.path.join(os.path.dirname(__file__),".."))
+print lib_path
+sys.path.append(lib_path)
 
 from auxiliary import cart2sph, fixPHI, Conventions
 from plotting import SpeakersPlotting
 import numpy as np
 from ConfigParser import SafeConfigParser,ParsingError
 import json
-
-
-# 5.0 for paper layout
-configfile = "./init_files/fivedotzero.ini"
-try:
-    parser = SafeConfigParser()
-    parser.read(configfile)
-    
-    case = parser.get('Layout','name')
-    az = json.loads(parser.get('Layout', 'PHI'))
-    el = json.loads(parser.get('Layout', 'THETA'))
-    ra = json.loads(parser.get('Layout', 'radius'))
-    label = json.loads(parser.get('Layout', 'chlabel'))
-    
-    DEC = parser.get('Ambisonics','DEC')
-    DEG = parser.getint('Ambisonics','DEG')
-  
-    case = parser.get('Layout','name')
-    AUTOREM =  parser.getboolean('Flags','AUTOREM') 
-    MATCHSPK = parser.getboolean('Flags','MATCHSPK') 
-    CP = parser.getint('Minimiz','CP') 
-    CV = parser.getint('Minimiz','CV')
-    CE = parser.getint('Minimiz','CE')
-    CR = parser.getint('Minimiz','CR')
-    CT = parser.getint('Minimiz','CT')
-    CPH= parser.getint('Minimiz','CPH')
-
-except ParsingError, err:
-    print 'Could not parse:', err
- 
-spkord = [4, 1, 3, 2, 5] ## this is important to get the connections right in jack
-
-
-az, el = fixPHI(az,el)
-print "\nradius (cm), elevation, azimut (radiants)"
-print ra
-print el
-print az
-
-# from rad to grad
-gaz = [180.0*ii/np.pi for ii in az]
-gel = [180.0*ii/np.pi for ii in el]
-
-print "\nradius (cm), elevation, azimut (grads)"
-print ra
-print gel
-print gaz
-
-#SpeakersPlotting(az,el,ra)
-#SpeakersPlotting(az,el,1)
-
-######################################################################################
-######################################################################################
-######################################################################################
-
+import argparse
 from numpy import array
 
-pyfilename = case+"-"+str(DEG)+"-"+str(DEC)+"-rem"+str(AUTOREM)+"-sym"+str(MATCHSPK)
 
-if (DEC=="basic"): pyfilename += "CP"+str(CP)+"CV"+str(CV)+".py" 
-if (DEC=="maxRe"): pyfilename += "CR"+str(CR)+"CT"+str(CT)+"CE"+str(CE)+".py"
-if (DEC=="phase"): pyfilename += "CR"+str(CR)+"CT"+str(CT)+"CPH"+str(CPH)+".py"
 
-#execfile("torrente-fz-2-maxRe-remFalse-symFalseCR100CT1400CE400.py")
-execfile(pyfilename)
+class Ini_Parser:
+    def __init__(self,ini_configfile):
+        try:
+            parser = SafeConfigParser()
+            parser.read(ini_configfile)
+            
+            self.case = parser.get('Layout','name')
+            self.az = json.loads(parser.get('Layout', 'PHI'))
+            self.el = json.loads(parser.get('Layout', 'THETA'))
+            try:
+                self.ra = json.loads(parser.get('Layout', 'radius'))
+            except:
+                self.ra = np.ones(len(self.az))
+            try:
+                self.label = json.loads(parser.get('Layout', 'chlabel'))
+            except:
+                self.label = [str(i+1) for i,j in enumerate(self.az)]
+            
+            self.DEC = parser.get('Ambisonics','DEC')
+            self.DEG = parser.getint('Ambisonics','DEG')
+          
+            self.case = parser.get('Layout','name')
+            self.AUTOREM =  parser.getboolean('Flags','AUTOREM') 
+            self.MATCHSPK = parser.getboolean('Flags','MATCHSPK') 
+            self.CP = parser.getint('Minimiz','CP') 
+            self.CV = parser.getint('Minimiz','CV')
+            self.CE = parser.getint('Minimiz','CE')
+            self.CR = parser.getint('Minimiz','CR')
+            self.CT = parser.getint('Minimiz','CT')
+            self.CPH= parser.getint('Minimiz','CPH')
+        
+        except ParsingError, err:
+            print 'Could not parse:', err
+        
+        print "Azimut and elevation of ", ini_configfile, " please check everything is fine."
+        self.az, self.el = fixPHI(self.az,self.el)
+        print "\nradius (cm), elevation, azimut (radiants)"
+        print self.ra
+        print self.el
+        print self.az
+        
+        # from rad to grad
+        self.gaz = [180.0*ii/np.pi for ii in self.az]
+        self.gel = [180.0*ii/np.pi for ii in self.el]
+        
+        print "\nradius (cm), elevation, azimut (grads)"
+        print self.ra
+        print self.gel
+        print self.gaz
+        
+        #SpeakersPlotting(az,el,ra)
+        #SpeakersPlotting(az,el,1)
 
-horiz_deg = int((ResCoeff.T.shape[1]-1)/2.)
 
-conv = Conventions(horiz_deg)
-lf_mat = GuessPinv.T#*conv.shrink(conv.fuma.n2d)
-hf_mat = ResCoeff.T#*conv.shrink(conv.fuma.n2d)
+
+
+## MAIN
+# Parsing arguments
+parser = argparse.ArgumentParser(description='Generate Ambdec config file from idhoa ini and py files.')
+parser.add_argument('-L', '--lf-matrix', type=str, dest='lf_ini_configfile', default='init_files/example.ini', 
+                    help='Path to .ini init file used to generate LF decoding matrix. It assumes that the .py file with results is located in main idhoa folder.')
+parser.add_argument('-H', '--hf-matrix', type=str, dest='hf_ini_configfile', default='init_files/example.ini',  
+                    help='Path to .ini init file used to generate HF decoding matrix. It assumes that the .py file with results is located in main idhoa folder.')
+parser.add_argument('-r', '--jack_routing', type=str, dest='speaker_order', default='',
+                    help='Change the order of speakers from the one you entered in ini file. A possible string could be "4 1 3 2 5"')
+parser.add_argument('-c', '--output_convention', type=str, dest='convention', default='N3D',
+                    help='Default normalization is N3D. You can ask to change it by specifying the destination convention. \nAvailable: "N3D" "SN3D" "MaxN" "FuMa" "SN2D" "N2D" ')
+parser.add_argument('-o', '--output_filename', type=str, dest='output_filename', default='idhoa.ambdec',
+                    help='Name of the Ambdec configuration file.')
+
+args = parser.parse_args()
+
+# Reading ini configurations files
+LF = Ini_Parser(args.lf_ini_configfile)
+HF = Ini_Parser(args.hf_ini_configfile)
+
+if args.speaker_order != '' :
+    spkord = args.speaker_order.split(' ')
+    spkord = [int(j) for i,j in enumerate(spkord)]
+else :
+    spkord = range(1,len(LF.az)+1)
+
+
+# Writing ambdec configuration file
+outf = open(args.output_filename, 'w')
+
+if LF.DEG != HF.DEG :
+    raise ValueError("The two ini files produce decodings at different orders. It is not possible to combine them in a single Ambdec configuration file, sorry.")
+    
+# starting with LF
+lf_pyfilename = LF.case+"-"+str(LF.DEG)+"-"+str(LF.DEC)+"-rem"+str(LF.AUTOREM)+"-sym"+str(LF.MATCHSPK)
+
+if (LF.DEC=="basic"): lf_pyfilename += "CP"+str(LF.CP)+"CV"+str(LF.CV)+".py" 
+if (LF.DEC=="maxRe"): lf_pyfilename += "CR"+str(LF.CR)+"CT"+str(LF.CT)+"CE"+str(LF.CE)+".py"
+if (LF.DEC=="phase"): lf_pyfilename += "CR"+str(LF.CR)+"CT"+str(LF.CT)+"CPH"+str(LF.CPH)+".py"
+execfile(lf_pyfilename)
+lf_mat = ResCoeff.T
+
+# then HF
+hf_pyfilename = HF.case+"-"+str(HF.DEG)+"-"+str(HF.DEC)+"-rem"+str(HF.AUTOREM)+"-sym"+str(HF.MATCHSPK)
+
+if (HF.DEC=="basic"): hf_pyfilename += "CP"+str(HF.CP)+"CV"+str(HF.CV)+".py" 
+if (HF.DEC=="maxRe"): hf_pyfilename += "CR"+str(HF.CR)+"CT"+str(HF.CT)+"CE"+str(HF.CE)+".py"
+if (HF.DEC=="phase"): hf_pyfilename += "CR"+str(HF.CR)+"CT"+str(HF.CT)+"CPH"+str(HF.CPH)+".py"
+execfile(hf_pyfilename)
+hf_mat = ResCoeff.T
+
+
+# convention change (if needed)
+conv = Conventions(DEG)
+## TODO
+#e.g.# hf_mat = ResCoeff.T*conv.shrink(conv.fuma.n2d)
 
 
 if nD == '2D':
@@ -128,9 +178,9 @@ h1 = '''# AmbDec configuration
 /dec/chan_mask    %s
 /dec/freq_bands   2
 /dec/speakers     %d
-/dec/coeff_scale  fuma
+/dec/coeff_scale  n3d
 
-/opt/input_scale  fuma
+/opt/input_scale  n3d
 /opt/nfeff_comp   input
 /opt/delay_comp   off
 /opt/level_comp   off
@@ -140,22 +190,24 @@ h1 = '''# AmbDec configuration
 /speakers/{ ''' % (mask, NSPK)
 
 print h1
-
+outf.write(h1)
 
 for jj,spkname in enumerate(spkord):
-    print "add_spkr    %s    %.3f    %.5f    %.5f    system:playback_%d" % (label[jj], ra[jj]/100, gaz[jj], gel[jj], spkname)
+    print "add_spkr    %s    %.3f    %.5f    %.5f    system:playback_%d" % (LF.label[jj], LF.ra[jj]/100, LF.gaz[jj], LF.gel[jj], spkname)
 
 h2 = '''/}
 
 /lfmatrix/{
 order_gain     1.00000  1.00000  1.00000  1.00000'''
 print h2
+outf.write("\n"+h2)
 
 string = ""
 for row in range(len(lf_mat)):
     for column,val in  enumerate(lf_mat[row]):
         string += "   %.6f" % val
     print "add_row " +string
+    outf.write("add_row " +string+"\n")
     string = ""
 
 h3 = '''/}
@@ -163,10 +215,13 @@ h3 = '''/}
 /hfmatrix/{
 order_gain     1.00000  1.00000  1.00000  1.00000'''
 print h3
+outf.write("\n"+h3)
+
 for row in range(len(hf_mat)):
     for column,val in  enumerate(hf_mat[row]):
         string += "   %.6f" % val
     print "add_row " +string
+    outf.write("add_row " +string+"\n")
     string = ""
 
 
@@ -174,3 +229,4 @@ h4 = '''/}
 
 /end'''
 print h4
+outf.write(h4)

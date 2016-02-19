@@ -124,10 +124,15 @@ Then, if you choose WBIN or AUTOREM, you will see the points used to measure the
 Then you should start to see some other plots appearing showing the performance of the naive decoding. Now the program is running, and you have to wait for the minimization results. This may last from fractions of a second (simple 2D layouts) to minutes (crazy irregular 3D layouts ;) ).
 
 
-## Utility generatingambdecpreset.pl ## 
+## Utility write_ambdec.py ## 
 
-Has been removed, but I'm working on a python version of it (more flexible).
+Usage example:
+    
+    python utilities/write_ambdec.py -L init_files/somefile_basic.ini -H init_files/somefile_maxre.ini -o youroutputfile.ambdec
 
+if you want to change channel routing use -r option
+    
+    python utilities/write_ambdec.py -L init_files/somefile_basic.ini -H init_files/somefile_maxre.ini -r "3 4 5 1 2" -o youroutputfile.ambdec
 
 ## Troubleshooting ##
 
