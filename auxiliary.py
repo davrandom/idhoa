@@ -115,12 +115,11 @@ def configConst(configfile):
     
     
     bt.SIGNSvec = SHsigns(bt.DEG)
-    bt.MATCHED, bt.PHI, bt.THETA = analyzeLayout(bt.PHI,bt.THETA,bt.MATCHTOL*np.pi/180)
-    bt.MAP = MapMatched(bt.MATCHED)
-    
-    if bt.MATCHSPK: bt.NSPKmatch = len(bt.MATCHED[bt.MATCHED>=0])
+    if bt.MATCHSPK : 
+        bt.MATCHED, bt.PHI, bt.THETA = analyzeLayout(bt.PHI,bt.THETA,bt.MATCHTOL*np.pi/180)
+        bt.NSPKmatch = len(bt.MATCHED[bt.MATCHED>=0]); 
+        bt.MAP = MapMatched(bt.MATCHED)
     else: bt.NSPKmatch = bt.NSPK
-
 
 
 #############
@@ -248,6 +247,7 @@ def analyzeLayout(PHI,THETA,tol):
     paired = np.zeros(mp)
     tdx = 0
 
+
     for idx, phi in enumerate(PHI):
         if (paired[idx]>=1): continue
 
@@ -280,12 +280,12 @@ def fixPHI(PHI, THETA):
         PHI = [PHI[i]*np.pi/180.0 for i in range(len(PHI))]
         THETA = [THETA[i]*np.pi/180.0 for i in range(len(THETA))]
     
-    # define positive PHIs
-    if (np.asarray(PHI)<0).any():
-        PHI = [2*np.pi+PHI[i] if PHI[i]<0 else PHI[i] for i in range(len(PHI))]
-    # then fold them again between -pi,+pi 
-    if (np.asarray(PHI)>np.pi).any():
-        PHI = [-np.pi+(PHI[i]%np.pi) if PHI[i]>np.pi else PHI[i] for i in range(len(PHI))]
+        # define positive PHIs
+        if (np.asarray(PHI)<0).any():
+            PHI = [2*np.pi+PHI[i] if PHI[i]<0 else PHI[i] for i in range(len(PHI))]
+        # then fold them again between -pi,+pi 
+        if (np.asarray(PHI)>np.pi).any():
+            PHI = [-np.pi+(PHI[i]%np.pi) if PHI[i]>np.pi else PHI[i] for i in range(len(PHI))]
 
     return PHI, THETA
 
@@ -348,7 +348,7 @@ class Conventions :
         # 13 (3,1)  L
         # 14 (3,2)  N
         # 15 (3,3)  P
-        # (up to third order tehre are some assigned letters, and then follows with similar pattern)
+        # (up to third order there are some assigned letters, and then follows with similar pattern)
         self.ACN3D = "W Y Z X V T R S U Q O M K L N P"
         self.ACN2D = "W Y X V U Q P"
 
