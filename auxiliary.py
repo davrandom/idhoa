@@ -119,7 +119,9 @@ def configConst(configfile):
         bt.MATCHED, bt.PHI, bt.THETA = analyzeLayout(bt.PHI,bt.THETA,bt.MATCHTOL*np.pi/180)
         bt.NSPKmatch = len(bt.MATCHED[bt.MATCHED>=0]); 
         bt.MAP = MapMatched(bt.MATCHED)
-    else: bt.NSPKmatch = bt.NSPK
+    else: 
+        bt.NSPKmatch = bt.NSPK
+        bt.MATCHED =  np.zeros(bt.NSPK)
 
 
 #############
