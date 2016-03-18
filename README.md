@@ -13,8 +13,7 @@ IDHOA it is a small program that generates the Ambisonics decoding coefficients 
 
 It is made of a collection of python scripts with different purposes:
 -- init_files/ - (folder) contains some examples for configuration files
--- constants.py - parses the initialization files
--- auxiliary.py - contains all the auxiliary functions used by the other python scripts
+-- auxiliary.py - contains all the auxiliary functions used by the other python scripts (e.g. included functionality: parse the initialization files)
 -- functions.py - contains all the functions for building the objective function
 -- plotting.py - contains only the plotting functions
 -- main.py - is the main program that uses constants read by constants.py from example.ini and calls functions from functions.py and plotting.py

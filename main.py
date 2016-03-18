@@ -26,7 +26,6 @@
 '''
 
 
-
 import numpy as np
 import math as mh
 from scipy import linalg
@@ -60,6 +59,7 @@ print "Number of sampling points ", NPOINTS
 ############################
 pyfilename = case+"-"+str(DEG)+"-"+str(DEC)+"-rem"+str(AUTOREM)+"-sym"+str(MATCHSPK)
 
+
 if (DEC=="basic"): pyfilename += "CP"+str(CP)+"CV"+str(CV)+".py" 
 if (DEC=="maxRe"): pyfilename += "CR"+str(CR)+"CT"+str(CT)+"CE"+str(CE)+".py"
 if (DEC=="phase"): pyfilename += "CR"+str(CR)+"CT"+str(CT)+"CPH"+str(CPH)+".py"
@@ -72,7 +72,11 @@ if os.path.exists(pyfilename):
 # controls(NSPK,DEG) ## checks before running the main program
 SpeakersPlotting(PHI,THETA,1)
 if WBIN: SpeakersPlotting(phiTest*WbinVec,thetaTest*WbinVec,1)
-if AUTOREM: SpeakersPlotting(phiTest*WremVec,thetaTest*WremVec,1)
+if WAUTOREM or AUTOREM: SpeakersPlotting(phiTest*WremVec,thetaTest*WremVec,1)
+
+
+print "\nIf you are happy with the distribution of speakers press a key \nOtherwise abort pressing ctrl+c"
+wait = raw_input()
 
 start = time.time()
 
@@ -130,12 +134,14 @@ if nD == '3D':
 
 InitGuess = downscalematrix(InitGuess,MATCHED)
 initvect = mattov(InitGuess)
+
 ## Global Optimization
 # GN_DIRECT, GN_DIRECT_L, GN_ORIG_DIRECT, GN_ORIG_DIRECT_L, GN_DIRECT_NOSCAL, GN_DIRECT_L_NOSCAL, GN_DIRECT_L_RAND_NOSCAL
 # GN_CRS2_LM
 # G_MLSL_LDS, G_MLSL
 # GD_STOGO, GD_STOGO_RAND
 # GN_ISRES
+
 prog = []
 tprogress = []
 nonzeroprog = []

@@ -55,13 +55,21 @@ def SpherePlotting(title,var):
     plt.show()
 
 
+
 def SpeakersPlotting(phi,theta,rho):
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
     x,y,z = PlotOverSphere(phi,theta,rho)
 
-    ax.scatter(x,y,z)
+    if len(x) > 50: # fast hack
+        sc = ax.scatter(x,y,z)
+    else :
+        for i in range(len(x)): #plot each point + it's index as text above
+            ax.scatter( x[i],y[i],z[i],color='b') 
+            ax.text(    x[i],y[i],z[i],  '%s' % (str(i+1)), size=14, zorder=1,  color='k') 
+
+
    # ax.plot_wireframe(x,y,z, rstride=10, cstride=10)
     plt.show()
 
