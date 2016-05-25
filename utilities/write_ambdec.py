@@ -34,7 +34,6 @@ import argparse
 from numpy import array
 
 
-
 class Ini_Parser:
     def __init__(self,ini_configfile):
         try:
@@ -84,6 +83,7 @@ class Ini_Parser:
         print self.ra
         print self.gel
         print self.gaz
+        print self.label
         
         #SpeakersPlotting(az,el,ra)
         #SpeakersPlotting(az,el,1)
@@ -106,6 +106,8 @@ parser.add_argument('-o', '--output_filename', type=str, dest='output_filename',
                     help='Name of the Ambdec configuration file.')
 
 args = parser.parse_args()
+
+input_scale = "fuma" # possible ones: fuma, n3d
 
 # Reading ini configurations files
 LF = Ini_Parser(args.lf_ini_configfile)
@@ -180,27 +182,31 @@ h1 = '''# AmbDec configuration
 /dec/speakers     %d
 /dec/coeff_scale  n3d
 
-/opt/input_scale  n3d
+/opt/input_scale  %s
 /opt/nfeff_comp   input
-/opt/delay_comp   off
+/opt/delay_comp   on
 /opt/level_comp   off
 /opt/xover_freq    400
 /opt/xover_ratio   0.0
 
-/speakers/{ ''' % (mask, NSPK)
+/speakers/{ ''' % (mask, NSPK, input_scale)
 
 print h1
-outf.write(h1)
+outf.write(h1+"\n")
 
+string = ""
 for jj,spkname in enumerate(spkord):
-    print "add_spkr    %s    %.3f    %.5f    %.5f    system:playback_%d" % (LF.label[jj], LF.ra[jj]/100, LF.gaz[jj], LF.gel[jj], spkname)
+    print "add_spkr    %s    %.3f    %.5f    %.5f    system:playback_%d" % (LF.label[jj], LF.ra[jj], LF.gaz[jj], LF.gel[jj], spkname)
+    string = "add_spkr    %s    %.3f    %.5f    %.5f    system:playback_%d" % (LF.label[jj], LF.ra[jj], LF.gaz[jj], LF.gel[jj], spkname)
+    outf.write(string+"\n")
+    string = ""
 
 h2 = '''/}
 
 /lfmatrix/{
 order_gain     1.00000  1.00000  1.00000  1.00000'''
 print h2
-outf.write("\n"+h2)
+outf.write(h2+"\n")
 
 string = ""
 for row in range(len(lf_mat)):
@@ -215,7 +221,7 @@ h3 = '''/}
 /hfmatrix/{
 order_gain     1.00000  1.00000  1.00000  1.00000'''
 print h3
-outf.write("\n"+h3)
+outf.write(h3+"\n")
 
 for row in range(len(hf_mat)):
     for column,val in  enumerate(hf_mat[row]):
@@ -229,4 +235,4 @@ h4 = '''/}
 
 /end'''
 print h4
-outf.write(h4)
+outf.write(h4+"\n")
