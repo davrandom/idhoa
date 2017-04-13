@@ -131,11 +131,11 @@ Then you should start to see some other plots appearing showing the performance 
 
 Usage example:
     
-    python utilities/write_ambdec.py -L init_files/somefile_basic.ini -H init_files/somefile_maxre.ini -o youroutputfile.ambdec
+    python utilities/write_ambdec.py -LF utilities/results_for_ccrma_2_basic.idhoa -HF utilities/results_for_ccrma_2_phase.idhoa -o youroutputfile.ambdec
 
 if you want to change channel routing use -r option
     
-    python utilities/write_ambdec.py -L init_files/somefile_basic.ini -H init_files/somefile_maxre.ini -r "3 4 5 1 2" -o youroutputfile.ambdec
+    python utilities/write_ambdec.py -LF utilities/results_for_ccrma_2_basic.idhoa -HF utilities/results_for_ccrma_2_phase.idhoa -r "3 4 5 1 2" -o youroutputfile.ambdec
 
 ## Troubleshooting ##
 
@@ -144,6 +144,8 @@ If, after installing nlopt, the nlopt library is not found you have to execute (
     export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib/
 
 before running the program main.py
+
+PS: You can also try to run it without arguments, it should use some example files and produce an output.
 
 
 ## Notes ##

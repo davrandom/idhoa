@@ -146,6 +146,7 @@ minstart = time.time()
 while True:
     # Local Optimization
     # LN_COBYLA, LN_BOBYQA, LN_NEWUOA, LN_NEWUOA_BOUND, LN_PRAXIS, LN_NELDERMEAD, LN_SBPLX
+    logging.info("ITERATION n. %d" % run)
     if run > 0:
         ResCoeff = support.downscalematrix(ResCoeff, cfg.MATCHED)
         initvect = support.mat2vec(ResCoeff)
@@ -190,9 +191,12 @@ while True:
     ResCoeff = support.vec2mat(res)
     ResCoeff = support.upscalematrix(ResCoeff, cfg.MATCHED)
 
-    print "Function value for Naive: ", support.objective_function(initial_guess_projection, coffs_in_test_directions[:]), " for Pinv: ", \
-        support.objective_function(initial_guess_pseudoinv, coffs_in_test_directions[:]), " for NL-min: ", \
-        support.objective_function(ResCoeff, coffs_in_test_directions[:]), " Elapsed time: ", time.time() - minstart
+    obj_function_at_NL_minimum = support.objective_function(ResCoeff, coffs_in_test_directions[:])
+    logging.info("Objective function value for Naive: %s" % obj_function_at_proj_guess)
+    logging.info("Objective function value for Pinv: %s" % obj_function_at_pinv_guess)
+    logging.info("Objective function value for non-linear minimization: %s" % obj_function_at_NL_minimum)
+    logging.info("Elapsed time: %s" % (time.time() - minstart))
+
     prog.append(support.objective_function(ResCoeff, coffs_in_test_directions[:]))
     tprogress.append(time.time() - minstart)
     minstart = time.time()
@@ -208,7 +212,7 @@ while True:
 #############
 #  RESULTS  #
 #############
-print "Minimization Results:"
+logging.info( "Minimization Results:" )
 if result == nlopt.SUCCESS:         logging.info("Successful minimization")
 if result == nlopt.STOPVAL_REACHED: logging.info("Optimization stopped because stopval was reached")
 if result == nlopt.FTOL_REACHED:    logging.info("Optimization stopped because ftol_rel or ftol_abs was reached")
@@ -229,9 +233,9 @@ ResCoeff = support.vec2mat(res)
 # np.reshape(res, ((DEG+1)**2,NSPKmatch))
 ResCoeff = support.upscalematrix(ResCoeff, cfg.MATCHED)
 
-print "\nLF matrix\n", initial_guess_pseudoinv.T
-print "\nCoefficients \n", ResCoeff.T
-if ResCoeff.T[abs(ResCoeff.T > 1.)].any(): logging.warning("WARNING: You reached a bad minimum.")
+logging.info("LF matrix \n%s" % initial_guess_pseudoinv.T )
+logging.info("Coefficients \n%s" % ResCoeff.T)
+if ResCoeff.T[abs(ResCoeff.T > 1.)].any(): logging.warning("You reached a bad minimum.")
 
 ##############
 #  PLOTTING  #
@@ -258,7 +262,7 @@ if cfg.nD == '3D':
 
 ###threed_polar_plot(phi, theta, Jradial)
 
-print "Elapsed time ", time.time() - start
+logging.info("Elapsed time %s" % (time.time() - start))
 
 ###############################
 # output some files
@@ -302,8 +306,9 @@ if cfg.is_mat_out_file:
                      'WbinVec': cfg.WbinVec,
                      'WremVec': cfg.WremVec})
 
-
-print "Function value for Naive: ", support.objective_function(initial_guess_projection, coffs_in_test_directions[:]), " for Pinv: ", \
-    support.objective_function(initial_guess_pseudoinv, coffs_in_test_directions[:]), " for NL-min: ", support.objective_function(ResCoeff, coffs_in_test_directions[:])
+obj_function_at_NL_minimum = support.objective_function(ResCoeff, coffs_in_test_directions[:])
+logging.info("Objective function value for Naive: %s" % obj_function_at_proj_guess)
+logging.info("Objective function value for Pinv: %s" % obj_function_at_pinv_guess)
+logging.info("Objective function value for non-linear minimization: %s" % obj_function_at_NL_minimum)
 
 # wait = raw_input()

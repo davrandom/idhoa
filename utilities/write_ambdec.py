@@ -19,138 +19,104 @@
 * 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 '''
 
-
-import os,sys
+import argparse
+import pickle
+import numpy as np
+import os
+import sys
 lib_path = os.path.abspath(os.path.join(os.path.dirname(__file__),".."))
 print lib_path
 sys.path.append(lib_path)
 
-from auxiliary import cart2sph, fix_phi, Conventions
+from auxiliary import Conventions
 from plotting import threed_polar_plot
-import numpy as np
-from ConfigParser import SafeConfigParser, ParsingError
-import json
-import argparse
-from numpy import array
 
 
-class Ini_Parser:
-    def __init__(self,ini_configfile):
-        try:
-            parser = SafeConfigParser()
-            parser.read(ini_configfile)
-            
-            self.case = parser.get('Layout','name')
-            self.az = json.loads(parser.get('Layout', 'PHI'))
-            self.el = json.loads(parser.get('Layout', 'THETA'))
-            try:
-                self.ra = json.loads(parser.get('Layout', 'radius'))
-            except:
-                self.ra = np.ones(len(self.az))
-            try:
-                self.label = json.loads(parser.get('Layout', 'chlabel'))
-            except:
-                self.label = [str(i+1) for i,j in enumerate(self.az)]
-            
-            self.DEC = parser.get('Ambisonics','DEC')
-            self.DEG = parser.getint('Ambisonics','DEG')
-          
-            self.case = parser.get('Layout','name')
-            self.autoexclude_regions_with_no_spkrs_binary =  parser.getboolean('Flags','autoexclude_regions_with_no_spkrs_binary')
-            self.match_symmetric_spkrs = parser.getboolean('Flags','match_symmetric_spkrs')
-            self.CP = parser.getint('Minimiz','CP') 
-            self.CV = parser.getint('Minimiz','CV')
-            self.CE = parser.getint('Minimiz','CE')
-            self.CR = parser.getint('Minimiz','CR')
-            self.CT = parser.getint('Minimiz','CT')
-            self.CPH= parser.getint('Minimiz','CPH')
-        
-        except ParsingError, err:
-            print 'Could not parse:', err
-        
-        print "Azimut and elevation of ", ini_configfile, " please check everything is fine."
-        self.az, self.el = fix_phi(self.az,self.el)
-        print "\nradius (cm), elevation, azimut (radiants)"
-        print self.ra
-        print self.el
-        print self.az
-        
-        # from rad to grad
-        self.gaz = [180.0*ii/np.pi for ii in self.az]
-        self.gel = [180.0*ii/np.pi for ii in self.el]
-        
-        print "\nradius (cm), elevation, azimut (grads)"
-        print self.ra
-        print self.gel
-        print self.gaz
-        print self.label
-        
-        #threed_polar_plot(az,el,ra)
-        #threed_polar_plot(az,el,1)
-
-
-
-
-# MAIN
 # Parsing arguments
-parser = argparse.ArgumentParser(description='Generate Ambdec config file from idhoa ini and py files.')
-parser.add_argument('-L', '--lf-matrix', type=str, dest='lf_ini_configfile', default='init_files/example.ini', 
-                    help='Path to .ini init file used to generate LF decoding matrix. It assumes that the .py file with results is located in main idhoa folder.')
-parser.add_argument('-H', '--hf-matrix', type=str, dest='hf_ini_configfile', default='init_files/example.ini',  
-                    help='Path to .ini init file used to generate HF decoding matrix. It assumes that the .py file with results is located in main idhoa folder.')
-parser.add_argument('-r', '--jack_routing', type=str, dest='speaker_order', default='',
-                    help='Change the order of speakers from the one you entered in ini file. A possible string could be "4 1 3 2 5"')
-parser.add_argument('-c', '--output_convention', type=str, dest='convention', default='N3D',
-                    help='Default normalization is N3D. You can ask to change it by specifying the destination convention. \nAvailable: "N3D" "SN3D" "MaxN" "FuMa" "SN2D" "N2D" ')
-parser.add_argument('-o', '--output_filename', type=str, dest='output_filename', default='idhoa.ambdec',
+parser = argparse.ArgumentParser(description='Generate Ambdec config file from "idhoa" files.')
+parser.add_argument('-LF', '--lf-matrix', type=str, dest='lf_results_file', default='utilities/results_for_ccrma_2_basic.idhoa',
+                    help='Path to "idhoa" results file generate LF decoding matrix. ')
+parser.add_argument('-pinv', '--use_pinv_for_LF', dest='pinv', action='store_true',
+                    help='Will use pinv guess for low frequencies instead of the NL minimum. ')
+parser.add_argument('-HF', '--hf-matrix', type=str, dest='hf_results_file', default='utilities/results_for_ccrma_2_phase.idhoa',
+                    help='Path to "idhoa" results file generate HF decoding matrix.')
+parser.add_argument('-jr', '--jack_routing', type=str, dest='speaker_order', default='',
+                    help='Change the order of speakers from the one you entered in ini file. '
+                         'A possible string could be "4 1 3 2 5"')
+parser.add_argument('-os', '--output_scale', type=str, dest='output_scale', default='N3D',
+                    help='Default normalization is N3D. You can ask to change it by specifying '
+                         'the destination convention. '
+                         '\nAvailable: "N3D" "SN3D" "MaxN" "FuMa" "SN2D" "N2D" ')
+parser.add_argument('-is', '--input_scale', type=str, dest='input_scale', default='fuma',
+                    help='Default normalization is N3D. You can ask to change it by specifying '
+                         'the destination convention. '
+                         '\nAvailable: "N3D" "SN3D" "MaxN" "FuMa" "SN2D" "N2D" ')
+parser.add_argument('-of', '--output_filename', type=str, dest='output_filename', default='idhoa.ambdec',
                     help='Name of the Ambdec configuration file.')
 
 args = parser.parse_args()
 
-input_scale = "fuma" # possible ones: fuma, n3d
+
+# threed_polar_plot(az,el,ra)
+# threed_polar_plot(az,el,1)
+
 
 # Reading ini configurations files
-LF = Ini_Parser(args.lf_ini_configfile)
-HF = Ini_Parser(args.hf_ini_configfile)
+LF = pickle.load(open(args.lf_results_file, 'rb'))
+HF = pickle.load(open(args.hf_results_file, 'rb'))
 
 if args.speaker_order != '' :
     spkord = args.speaker_order.split(' ')
-    spkord = [int(j) for i,j in enumerate(spkord)]
+    spkord = [int(j) for i, j in enumerate(spkord)]
 else :
-    spkord = range(1,len(LF.az)+1)
+    spkord = range(1, len(LF.PHI)+1)
 
 
 # Writing ambdec configuration file
 outf = open(args.output_filename, 'w')
 
-if LF.DEG != HF.DEG :
-    raise ValueError("The two ini files produce decodings at different orders. It is not possible to combine them in a single Ambdec configuration file, sorry.")
-    
-# starting with LF
-lf_pyfilename = LF.case+"-"+str(LF.DEG)+"-"+str(LF.DEC)+"-rem"+str(LF.autoexclude_regions_with_no_spkrs_binary)+"-sym"+str(LF.match_symmetric_spkrs)
+if LF.DEG != HF.DEG:
+    raise ValueError("The two idhoa files produce decodings at different orders (LF:%d, HF:%d)."
+                     "It is not possible to combine them in a single Ambdec configuration file." % (LF.DEG, HF.DEG))
+if LF.nD != HF.nD:
+    raise ValueError("The two idhoa files produce decodings with different dimensionality (LF:%s, HF:%s)."
+                     "It is not possible to combine them in a single Ambdec configuration file." % (LF.nD, HF.nD))
+if LF.NSPK != HF.NSPK:
+    raise ValueError("The two idhoa files produce decodings for two different speakers' layout (LF:%d, HF:%d)."
+                     "It is not possible to combine them in a single Ambdec configuration file." % (LF.NSPK, HF.NSPK))
 
-if (LF.DEC=="basic"): lf_pyfilename += "CP"+str(LF.CP)+"CV"+str(LF.CV)+".py" 
-if (LF.DEC=="maxRe"): lf_pyfilename += "CR"+str(LF.CR)+"CT"+str(LF.CT)+"CE"+str(LF.CE)+".py"
-if (LF.DEC=="phase"): lf_pyfilename += "CR"+str(LF.CR)+"CT"+str(LF.CT)+"CPH"+str(LF.CPH)+".py"
-execfile(lf_pyfilename)
-lf_mat = ResCoeff.T
+DEG = HF.DEG
+nD  = HF.nD
+NSPK= HF.NSPK
 
-# then HF
-hf_pyfilename = HF.case+"-"+str(HF.DEG)+"-"+str(HF.DEC)+"-rem"+str(HF.autoexclude_regions_with_no_spkrs_binary)+"-sym"+str(HF.match_symmetric_spkrs)
+lf_mat = LF.obj_minimization_matrix
+hf_mat = HF.obj_minimization_matrix
+if args.pinv:
+    lf_mat = LF.pseudoinv_guess_matrix
 
-if (HF.DEC=="basic"): hf_pyfilename += "CP"+str(HF.CP)+"CV"+str(HF.CV)+".py" 
-if (HF.DEC=="maxRe"): hf_pyfilename += "CR"+str(HF.CR)+"CT"+str(HF.CT)+"CE"+str(HF.CE)+".py"
-if (HF.DEC=="phase"): hf_pyfilename += "CR"+str(HF.CR)+"CT"+str(HF.CT)+"CPH"+str(HF.CPH)+".py"
-execfile(hf_pyfilename)
-hf_mat = ResCoeff.T
+# from rad to grad
+LF.grad_az = [180.0 * ii / np.pi for ii in LF.PHI]
+LF.grad_el = [180.0 * ii / np.pi for ii in LF.THETA]
+HF.grad_az = [180.0 * ii / np.pi for ii in HF.PHI]
+HF.grad_el = [180.0 * ii / np.pi for ii in HF.THETA]
+try:
+    hflabel = HF.label
+    lflabel = LF.label
+except:
+    LF.label = [str(i + 1) for i, j in enumerate(LF.PHI)]
 
+try:
+    lfradius = LF.radius
+    hfradius = HF.radius
+except:
+    LF.radius = np.ones(len(LF.PHI))
 
 # convention change (if needed)
 conv = Conventions(DEG)
 # TODO
-#e.g.# hf_mat = ResCoeff.T*conv.shrink(conv.fuma.n2d)
+# e.g.# hf_mat = ResCoeff.T*conv.shrink(conv.fuma.n2d)
 
-
+mask = ""
 if nD == '2D':
     if DEG == 1:
         mask = "b"
@@ -160,15 +126,15 @@ if nD == '2D':
         mask = "831b"
     if DEG > 3:
         mask = "dontknow!"
-
-if nD.replace(" ","") == '3D':
+elif nD == '3D':
     if DEG == 1:
         mask = "f"
     if DEG == 2:
         mask = "1ff"
     if DEG == 3:
         mask = "ffff"
-    
+else:
+    raise ValueError("The dimensionality of the problem is unknown: %s. Should be 2D or 3D." % nD)
 
 h1 = '''# AmbDec configuration
 # Written by write_ambdec.py
@@ -189,15 +155,15 @@ h1 = '''# AmbDec configuration
 /opt/xover_freq    400
 /opt/xover_ratio   0.0
 
-/speakers/{ ''' % (mask, NSPK, input_scale)
+/speakers/{ ''' % (mask, NSPK, args.input_scale)
 
 print h1
 outf.write(h1+"\n")
 
 string = ""
 for jj,spkname in enumerate(spkord):
-    print "add_spkr    %s    %.3f    %.5f    %.5f    system:playback_%d" % (LF.label[jj], LF.ra[jj], LF.gaz[jj], LF.gel[jj], spkname)
-    string = "add_spkr    %s    %.3f    %.5f    %.5f    system:playback_%d" % (LF.label[jj], LF.ra[jj], LF.gaz[jj], LF.gel[jj], spkname)
+    print "add_spkr    %s    %.3f    %.5f    %.5f    system:playback_%d" % (LF.label[jj], LF.radius[jj], LF.grad_az[jj], LF.grad_el[jj], spkname)
+    string = "add_spkr    %s    %.3f    %.5f    %.5f    system:playback_%d" % (LF.label[jj], LF.radius[jj], LF.grad_az[jj], LF.grad_el[jj], spkname)
     outf.write(string+"\n")
     string = ""
 
@@ -224,7 +190,7 @@ print h3
 outf.write(h3+"\n")
 
 for row in range(len(hf_mat)):
-    for column,val in  enumerate(hf_mat[row]):
+    for column, val in  enumerate(hf_mat[row]):
         string += "   %.6f" % val
     print "add_row " +string
     outf.write("add_row " +string+"\n")
