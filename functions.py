@@ -58,7 +58,7 @@ def maxReCoeffs(order):
     return coeffs
 
 
-class ambisoniClass:
+class Ambisonic:
     def __init__(self, configClass):
         self.cfg = configClass
         self.phi = self.cfg.PHI
@@ -516,9 +516,9 @@ class ambisoniClass:
 
 
 class Support:
-    def __init__(self, configClass, ambisoniClass):
+    def __init__(self, configClass, Ambisonic):
         self.cfg = configClass
-        self.amb = ambisoniClass
+        self.amb = Ambisonic
         self.nD  = self.cfg.nD
         self.DEC = self.cfg.DEC
         self.DEG = self.cfg.DEG
@@ -707,7 +707,7 @@ class Support:
     ################################
     # The function to be minimized #
     ################################
-    def function(self, VarCoeffSpk, *args):
+    def objective_function(self, VarCoeffSpk, *args):
         if len(args) > 1:
             grad = args[0]
             logging.error("You have to implement the gradient or use another algorithm")

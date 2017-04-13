@@ -55,7 +55,7 @@ logging.basicConfig(
 # initialize configuration
 configfile = args.configfile
 cfg = prs.configConst(configfile)
-ambicl = fct.ambisoniClass(cfg)
+ambicl = fct.Ambisonic(cfg)
 support = fct.Support(cfg, ambicl)
 
 logging.info("You choose %s at order: %d " % (cfg.DEC, cfg.DEG))
@@ -92,8 +92,8 @@ support.coeffDir = coeffDir
 Guess0 = ambicl.get_ambisonic_coeffs(inversion=0)  # initial guess
 GuessPinv = ambicl.get_ambisonic_coeffs(inversion=1)  # initial guess
 
-f0  = support.function(Guess0, coeffDir[:])
-fPV = support.function(GuessPinv, coeffDir[:])
+f0  = support.objective_function(Guess0, coeffDir[:])
+fPV = support.objective_function(GuessPinv, coeffDir[:])
 
 InitGuess = Guess0
 if f0 > fPV and np.asarray(
@@ -159,7 +159,7 @@ while True:
         initvect = support.mat2vec(ResCoeff)
 
     opt = nlopt.opt(nlopt.LN_SBPLX, len(initvect))
-    opt.set_min_objective(support.function)
+    opt.set_min_objective(support.objective_function)
     tol = np.asarray([0.1] * len(initvect))
     # opt.add_equality_mconstraint(equality_constr, tol)
     # opt.add_inequality_mconstraint(inequality_constr, tol)
@@ -198,10 +198,10 @@ while True:
     ResCoeff = support.vec2mat(res)
     ResCoeff = support.upscalematrix(ResCoeff, cfg.MATCHED)
 
-    print "Function value for Naive: ", support.function(Guess0, coeffDir[:]), " for Pinv: ", \
-        support.function(GuessPinv, coeffDir[:]), " for NL-min: ", \
-        support.function(ResCoeff, coeffDir[:]), " Elapsed time: ", time.time() - minstart
-    prog.append(support.function(ResCoeff, coeffDir[:]))
+    print "Function value for Naive: ", support.objective_function(Guess0, coeffDir[:]), " for Pinv: ", \
+        support.objective_function(GuessPinv, coeffDir[:]), " for NL-min: ", \
+        support.objective_function(ResCoeff, coeffDir[:]), " Elapsed time: ", time.time() - minstart
+    prog.append(support.objective_function(ResCoeff, coeffDir[:]))
     tprogress.append(time.time() - minstart)
     minstart = time.time()
 
@@ -334,7 +334,7 @@ if cfg.is_mat_out_file:
                      'WremVec': cfg.WremVec})
 
 
-print "Function value for Naive: ", support.function(Guess0, coeffDir[:]), " for Pinv: ", \
-    support.function(GuessPinv, coeffDir[:]), " for NL-min: ", support.function(ResCoeff, coeffDir[:])
+print "Function value for Naive: ", support.objective_function(Guess0, coeffDir[:]), " for Pinv: ", \
+    support.objective_function(GuessPinv, coeffDir[:]), " for NL-min: ", support.objective_function(ResCoeff, coeffDir[:])
 
 # wait = raw_input()

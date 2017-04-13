@@ -65,46 +65,46 @@ In Ubuntu and Debian:
 The angular coordinates (theta and phi) of the loudspeakers, in the usual acoustics reference frame.
 
 
-    * Parameters
-        * Basic parameters
-            1. PHI - list of phi coordinates of the loudspeakers
+* Parameters
+    * Basic parameters
+        1. PHI - list of phi coordinates of the loudspeakers
 
-            2. THETA - list of theta coordinates of the louspeakers (in the same order of phi coords)
+        2. THETA - list of theta coordinates of the louspeakers (in the same order of phi coords)
 
-            3. DEC - available decoding schemes: basic, maxRe, phase.
+        3. DEC - available decoding schemes: basic, maxRe, phase.
 
-            * The basic decoding initialize the minimization algorithm with the "naive" of "pinv" coefficients.
+            - The basic decoding initialize the minimization algorithm with the "naive" of "pinv" coefficients.
             If you selected the basic decoding then you probably don't want the minimization algorithm to search for a new minimum... and maybe you would prefere to get the pinv coefficients. Just modify the main.py accordingly.
             That said you probably would prefere to use "maxRe" or "phase" optimizations.
+    
+            - maxRe - implements the "max r_e" criterium. Tries to maximize the modulus of the energy vector r_e. (Look appendix A.4.2 Jérôme Daniel PhD thesis)
+    
+            - phase - implements the "in-phase" criterium, where all the loudspeakers are in-phase (i.e. the gains are >=0). (Look appendix A.4.3 Jérôme Daniel PhD thesis)
 
-            * maxRe - implements the "max r_e" criterium. Tries to maximize the modulus of the energy vector r_e. (Look appendix A.4.2 Jérôme Daniel PhD thesis)
+        4. DEG - the degree of ambisonics decoding you want
 
-            * phase - implements the "in-phase" criterium, where all the loudspeakers are in-phase (i.e. the gains are >=0). (Look appendix A.4.3 Jérôme Daniel PhD thesis)
-
-
-            4. DEG - the degree of ambisonics decoding you want
-
-            5. SEED - gives the initial number to the function that generates the evaluation point over the sphere. A reasonable number for a 3D layout is between 14 and 20. (You get between 245 and 503 points over the sphere respectively). For a 2D layout you can put something like 60.  
+        5. SEED - gives the initial number to the function that generates the evaluation point over the sphere. A reasonable number for a 3D layout is between 14 and 20. (You get between 245 and 503 points over the sphere respectively). For a 2D layout you can put something like 60.  
 
 
-    * Flags
-        1. mute_small_coeffs - tries to put to zero the smallest coefficients (at the moment if smaller than 3*10e-4). Pros: This can help to mute some misplaced spekers that are not usefully contributing to the decoding. Cons: time consuming because it runs serveral times the minimization algorithm. (TBD: write a note on the exit strategy from the loop)
+* Flags
 
-        2. autoexclude_regions_with_no_spkrs_binary - removes the sampling points (over the sphere) that are too far from the loudspeakers. Use this flag ONLY if you layout is not fully spherical but has some areas where there are no louspeakers. Pros: The algorithm doesn't try to optimize in regions where there are no loudspeakers. This is good because otherwise the existing loudspeakers will have to try to compensate for the missing ones. Cons: ?. It's a binary mask.
+    1. mute_small_coeffs - tries to put to zero the smallest coefficients (at the moment if smaller than 3*10e-4). Pros: This can help to mute some misplaced spekers that are not usefully contributing to the decoding. Cons: time consuming because it runs serveral times the minimization algorithm. (TBD: write a note on the exit strategy from the loop)
 
-        3. prefer_homogeneous_coeffs - means "Prefere Homogeneous", if true tries to smooth the differences between the coefficients. Pros: Cons:
+    2. autoexclude_regions_with_no_spkrs_binary - removes the sampling points (over the sphere) that are too far from the loudspeakers. Use this flag ONLY if you layout is not fully spherical but has some areas where there are no louspeakers. Pros: The algorithm doesn't try to optimize in regions where there are no loudspeakers. This is good because otherwise the existing loudspeakers will have to try to compensate for the missing ones. Cons: ?. It's a binary mask.
 
-        4. prefer_front - gives priority to the front in optimizing the objective function
+    3. prefer_homogeneous_coeffs - means "Prefere Homogeneous", if true tries to smooth the differences between the coefficients. Pros: Cons:
 
-        5. prefer_horiz_plane - gives priority to the horizontal plane in optimizing the objective function
+    4. prefer_front - gives priority to the front in optimizing the objective function
 
-        6. exclude_with_theta_binary_mask - you can implement a "binary mask" to remove unused areas of the sphere. This in principle can be done automatically just by using autoexclude_regions_with_no_spkrs_binary
+    5. prefer_horiz_plane - gives priority to the horizontal plane in optimizing the objective function
 
-        7. autoexclude_regions_with_no_spkrs_smooth - performs almost the same operation that AUOTREM does but using weights into the objective function. This way -if you modify the weight coefficients in "function" inside functions.py- you can adjust the weight that you give to the missing area (does this have any advantage? maybe). If you just want to remove the uncovered area then it's faster to use autoexclude_regions_with_no_spkrs_binary.
+    6. exclude_with_theta_binary_mask - you can implement a "binary mask" to remove unused areas of the sphere. This in principle can be done automatically just by using autoexclude_regions_with_no_spkrs_binary
 
-        8. match_symmetric_spkrs - will match symmetric speakers speeding up the minimization process and giving symetric coefficients to symetric speakers.
+    7. autoexclude_regions_with_no_spkrs_smooth - performs almost the same operation that AUOTREM does but using weights into the objective function. This way -if you modify the weight coefficients in "function" inside functions.py- you can adjust the weight that you give to the missing area (does this have any advantage? maybe). If you just want to remove the uncovered area then it's faster to use autoexclude_regions_with_no_spkrs_binary.
 
-        9. match_tolerance - tolerance for match_symmetric_spkrs
+    8. match_symmetric_spkrs - will match symmetric speakers speeding up the minimization process and giving symetric coefficients to symetric speakers.
+
+    9. match_tolerance - tolerance for match_symmetric_spkrs
 
 2. Then you might want to have a look at the most important parts of the main.py
 The most important part is the MINIMIZATION section.

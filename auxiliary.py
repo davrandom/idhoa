@@ -54,7 +54,7 @@ def get_points_over_sphere(NP, nD):
     return np.asarray(phiok), np.asarray(thetaok)
 
 
-class WaveletsM:
+class WaveletsMatrix:
     def __init__(self, filename):
         matfile = sio.loadmat(filename)
         self.az4 = matfile['az'][0]
