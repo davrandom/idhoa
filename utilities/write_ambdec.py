@@ -25,10 +25,10 @@ lib_path = os.path.abspath(os.path.join(os.path.dirname(__file__),".."))
 print lib_path
 sys.path.append(lib_path)
 
-from auxiliary import cart2sph, fixPHI, Conventions
-from plotting import SpeakersPlotting
+from auxiliary import cart2sph, fix_phi, Conventions
+from plotting import threed_polar_plot
 import numpy as np
-from ConfigParser import SafeConfigParser,ParsingError
+from ConfigParser import SafeConfigParser, ParsingError
 import json
 import argparse
 from numpy import array
@@ -56,8 +56,8 @@ class Ini_Parser:
             self.DEG = parser.getint('Ambisonics','DEG')
           
             self.case = parser.get('Layout','name')
-            self.AUTOREM =  parser.getboolean('Flags','AUTOREM') 
-            self.MATCHSPK = parser.getboolean('Flags','MATCHSPK') 
+            self.autoexclude_regions_with_no_spkrs_binary =  parser.getboolean('Flags','autoexclude_regions_with_no_spkrs_binary')
+            self.match_symmetric_spkrs = parser.getboolean('Flags','match_symmetric_spkrs')
             self.CP = parser.getint('Minimiz','CP') 
             self.CV = parser.getint('Minimiz','CV')
             self.CE = parser.getint('Minimiz','CE')
@@ -69,7 +69,7 @@ class Ini_Parser:
             print 'Could not parse:', err
         
         print "Azimut and elevation of ", ini_configfile, " please check everything is fine."
-        self.az, self.el = fixPHI(self.az,self.el)
+        self.az, self.el = fix_phi(self.az,self.el)
         print "\nradius (cm), elevation, azimut (radiants)"
         print self.ra
         print self.el
@@ -85,13 +85,13 @@ class Ini_Parser:
         print self.gaz
         print self.label
         
-        #SpeakersPlotting(az,el,ra)
-        #SpeakersPlotting(az,el,1)
+        #threed_polar_plot(az,el,ra)
+        #threed_polar_plot(az,el,1)
 
 
 
 
-## MAIN
+# MAIN
 # Parsing arguments
 parser = argparse.ArgumentParser(description='Generate Ambdec config file from idhoa ini and py files.')
 parser.add_argument('-L', '--lf-matrix', type=str, dest='lf_ini_configfile', default='init_files/example.ini', 
@@ -127,7 +127,7 @@ if LF.DEG != HF.DEG :
     raise ValueError("The two ini files produce decodings at different orders. It is not possible to combine them in a single Ambdec configuration file, sorry.")
     
 # starting with LF
-lf_pyfilename = LF.case+"-"+str(LF.DEG)+"-"+str(LF.DEC)+"-rem"+str(LF.AUTOREM)+"-sym"+str(LF.MATCHSPK)
+lf_pyfilename = LF.case+"-"+str(LF.DEG)+"-"+str(LF.DEC)+"-rem"+str(LF.autoexclude_regions_with_no_spkrs_binary)+"-sym"+str(LF.match_symmetric_spkrs)
 
 if (LF.DEC=="basic"): lf_pyfilename += "CP"+str(LF.CP)+"CV"+str(LF.CV)+".py" 
 if (LF.DEC=="maxRe"): lf_pyfilename += "CR"+str(LF.CR)+"CT"+str(LF.CT)+"CE"+str(LF.CE)+".py"
@@ -136,7 +136,7 @@ execfile(lf_pyfilename)
 lf_mat = ResCoeff.T
 
 # then HF
-hf_pyfilename = HF.case+"-"+str(HF.DEG)+"-"+str(HF.DEC)+"-rem"+str(HF.AUTOREM)+"-sym"+str(HF.MATCHSPK)
+hf_pyfilename = HF.case+"-"+str(HF.DEG)+"-"+str(HF.DEC)+"-rem"+str(HF.autoexclude_regions_with_no_spkrs_binary)+"-sym"+str(HF.match_symmetric_spkrs)
 
 if (HF.DEC=="basic"): hf_pyfilename += "CP"+str(HF.CP)+"CV"+str(HF.CV)+".py" 
 if (HF.DEC=="maxRe"): hf_pyfilename += "CR"+str(HF.CR)+"CT"+str(HF.CT)+"CE"+str(HF.CE)+".py"
@@ -147,7 +147,7 @@ hf_mat = ResCoeff.T
 
 # convention change (if needed)
 conv = Conventions(DEG)
-## TODO
+# TODO
 #e.g.# hf_mat = ResCoeff.T*conv.shrink(conv.fuma.n2d)
 
 

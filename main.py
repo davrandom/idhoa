@@ -35,6 +35,7 @@ import logging
 import sys
 import numpy as np
 
+import ini_parser as prs
 import auxiliary as aux
 import functions as fct
 import plotting as ptt
@@ -53,42 +54,40 @@ logging.basicConfig(
 
 # initialize configuration
 configfile = args.configfile
-conf = aux.configConst(configfile)
-# because of how nlopt call to minimization function is made,
-# the easiest way to share the configuration with "function" is using builtins
-ambicl = fct.ambisoniClass(conf)
-support = fct.Support(conf, ambicl)
+cfg = prs.configConst(configfile)
+ambicl = fct.ambisoniClass(cfg)
+support = fct.Support(cfg, ambicl)
 
-logging.info("You choose %s at order: %d " % (conf.DEC, conf.DEG))
-logging.info("The number of speakers is %d " % conf.NSPK)
-logging.info("Number of sampling points %d " % conf.NPOINTS)
+logging.info("You choose %s at order: %d " % (cfg.DEC, cfg.DEG))
+logging.info("The number of speakers is %d " % cfg.NSPK)
+logging.info("Number of sampling points %d " % cfg.NPOINTS)
 
 ############################
-## Saving stuff in a file ##
+#  Saving stuff in a file  #
 ############################
-pyfilename = conf.case + "-" + str(conf.DEG) + "-" + str(conf.DEC) + "-rem" + str(conf.AUTOREM) + "-sym" + str(conf.MATCHSPK)
+pyfilename = cfg.case + "-" + str(cfg.DEG) + "-" + str(cfg.DEC) + "-rem" + str(cfg.autoexclude_regions_with_no_spkrs_binary) + "-sym" + str(cfg.match_symmetric_spkrs)
 
-if (conf.DEC == "basic"): pyfilename += "CP" + str(conf.CP) + "CV" + str(conf.CV) + ".py"
-if (conf.DEC == "maxRe"): pyfilename += "CR" + str(conf.CR) + "CT" + str(conf.CT) + "CE" + str(conf.CE) + ".py"
-if (conf.DEC == "phase"): pyfilename += "CR" + str(conf.CR) + "CT" + str(conf.CT) + "CPH" + str(conf.CPH) + ".py"
+if (cfg.DEC == "basic"): pyfilename += "CP" + str(cfg.CP) + "CV" + str(cfg.CV) + ".py"
+if (cfg.DEC == "maxRe"): pyfilename += "CR" + str(cfg.CR) + "CT" + str(cfg.CT) + "CE" + str(cfg.CE) + ".py"
+if (cfg.DEC == "phase"): pyfilename += "CR" + str(cfg.CR) + "CT" + str(cfg.CT) + "CPH" + str(cfg.CPH) + ".py"
 
-# if os.path.exists(pyfilename):
-#     message = "Looks like you already have a configuration/output file with the same name. \nRemove or rename " + pyfilename + " and run again idhoa."
-#     sys.exit(message)
-
-# controls(NSPK,DEG) ## checks before running the main program
-# SpeakersPlotting(conf.PHI, conf.THETA, 1)
-# if conf.WBIN: ptt.SpeakersPlotting(conf.phiTest * conf.WbinVec, conf.thetaTest * conf.WbinVec, 1)
-# if conf.WAUTOREM or conf.AUTOREM: ptt.SpeakersPlotting(conf.phiTest * conf.WremVec, conf.thetaTest * conf.WremVec, 1)
+fct.controls(cfg.NSPK, cfg.DEG)  # checks before running the main program
+# Plot speakers
+ptt.threed_polar_plot(cfg.PHI, cfg.THETA, 1, True)
+# Plot evaluations points grid
+if cfg.exclude_with_theta_binary_mask:
+    ptt.threed_polar_plot(cfg.phiTest * cfg.WbinVec, cfg.thetaTest * cfg.WbinVec, 1)
+if cfg.autoexclude_regions_with_no_spkrs_smooth or cfg.autoexclude_regions_with_no_spkrs_binary:
+    ptt.threed_polar_plot(cfg.phiTest * cfg.WremVec, cfg.thetaTest * cfg.WremVec, 1)
 
 # print "\nIf you are happy with the distribution of speakers press a key \nOtherwise abort pressing ctrl+c"
 # wait = raw_input()
 
 start = time.time()
 
-## INITIAL PARAMETERS
+# INITIAL PARAMETERS
 # calculating ambisonics coefficients in test directions
-coeffDir = ambicl.get_ambisonic_coeffs(phi=conf.phiTest, theta=conf.thetaTest, DEC='basic', DEG=conf.DEG, inversion=0)
+coeffDir = ambicl.get_ambisonic_coeffs(phi=cfg.phiTest, theta=cfg.thetaTest, DEC='basic', DEG=cfg.DEG, inversion=0)
 support.coeffDir = coeffDir
 Guess0 = ambicl.get_ambisonic_coeffs(inversion=0)  # initial guess
 GuessPinv = ambicl.get_ambisonic_coeffs(inversion=1)  # initial guess
@@ -96,50 +95,49 @@ GuessPinv = ambicl.get_ambisonic_coeffs(inversion=1)  # initial guess
 f0  = support.function(Guess0, coeffDir[:])
 fPV = support.function(GuessPinv, coeffDir[:])
 
-# FIXME I don't like this, call the initial Guess like InitGuess and don't mix 0 with PV stuff they are two different things
 InitGuess = Guess0
 if f0 > fPV and np.asarray(
     [abs(GuessPinv) < 1.]).all(): InitGuess = GuessPinv  # This way we choose the starting point closest to the minimum
 
-sij = support.Sij(InitGuess, coeffDir[:], conf.NPOINTS)
-pressure0, V0, energyD0, J0, Vradial0, Jradial0, Vtang0, Jtang0 = support.physDir(sij, conf.phiTest, conf.thetaTest)
+sij = support.Sij(InitGuess, coeffDir[:], cfg.NPOINTS)
+pressure0, V0, energyD0, J0, Vradial0, Jradial0, Vtang0, Jtang0 = support.directional_components(sij, cfg.phiTest, cfg.thetaTest)
 
-####################################
-## Initial PLOTTING
-####################################
-phiPl, thetaPl = ptt.PlSpherePtRotat(conf.SEED, conf)
+######################
+#  Initial PLOTTING  #
+######################
+phiPl, thetaPl = ptt.points_over_sphere_plotting(cfg.SEED, cfg)
 Npt = len(phiPl)
 phi = np.asarray(phiPl)
 theta = np.asarray(thetaPl)
 
-coeffPl = ambicl.get_ambisonic_coeffs(phiPl, thetaPl, 'basic', conf.DEG, 0)
+coeffPl = ambicl.get_ambisonic_coeffs(phiPl, thetaPl, 'basic', cfg.DEG, 0)
 sij = support.Sij(Guess0, coeffPl, Npt)
 
-pressureZ, VZ, energyDZ, JZ, VradialZ, JradialZ, VtangZ, JtangZ = support.physDir(sij, phiPl, thetaPl)
+pressureZ, VZ, energyDZ, JZ, VradialZ, JradialZ, VtangZ, JtangZ = support.directional_components(sij, phiPl, thetaPl)
 
-if conf.DEC != 'basic':
-    ptt.Polar(conf, "Naive-Horizontal", phi[theta == 0.], energyDZ[theta == 0.], JradialZ[theta == 0.], JtangZ[theta == 0.],
+if cfg.DEC != 'basic':
+    ptt.polar_plot(cfg, "Naive-Horizontal", phi[theta == 0.], energyDZ[theta == 0.], JradialZ[theta == 0.], JtangZ[theta == 0.],
               ('energy', 'intensity L', 'intensity T'))
-if conf.DEC == 'basic':
-    ptt.Polar(conf, "Naive-Horizontal", phi[theta == 0.], pressureZ[theta == 0.], VradialZ[theta == 0.], VtangZ[theta == 0.],
+if cfg.DEC == 'basic':
+    ptt.polar_plot(cfg, "Naive-Horizontal", phi[theta == 0.], pressureZ[theta == 0.], VradialZ[theta == 0.], VtangZ[theta == 0.],
               ('pressure', 'velocity L', 'velocity T'))
 
-if conf.nD == '3D':
-    if conf.DEC != 'basic':
-        ptt.Polar(conf, "Naive-Vertical", theta[phi == 0], energyDZ[phi == 0], JradialZ[phi == 0], JtangZ[phi == 0],
+if cfg.nD == '3D':
+    if cfg.DEC != 'basic':
+        ptt.polar_plot(cfg, "Naive-Vertical", theta[phi == 0], energyDZ[phi == 0], JradialZ[phi == 0], JtangZ[phi == 0],
                   ('energy', 'intensity L', 'intensity T'))
-    if conf.DEC == 'basic':
-        ptt.Polar(conf, "Naive-Vertical", theta[phi == 0], pressureZ[phi == 0], VradialZ[phi == 0], VtangZ[phi == 0],
+    if cfg.DEC == 'basic':
+        ptt.polar_plot(cfg, "Naive-Vertical", theta[phi == 0], pressureZ[phi == 0], VradialZ[phi == 0], VtangZ[phi == 0],
                   ('pressure', 'velocity L', 'velocity T'))
 
-#####################################
-## MINIMIZATION
-#####################################
+##################
+#  MINIMIZATION  #
+##################
 # here we have to shrink the initGuess
-InitGuess   = support.downscalematrix(InitGuess, conf.MATCHED)
-initvect    = support.mattov(InitGuess)
+InitGuess   = support.downscalematrix(InitGuess, cfg.MATCHED)
+initvect    = support.mat2vec(InitGuess)
 
-## Global Optimization
+# Global Optimization
 # GN_DIRECT, GN_DIRECT_L, GN_ORIG_DIRECT, GN_ORIG_DIRECT_L, GN_DIRECT_NOSCAL, GN_DIRECT_L_NOSCAL, GN_DIRECT_L_RAND_NOSCAL
 # GN_CRS2_LM
 # G_MLSL_LDS, G_MLSL
@@ -154,17 +152,17 @@ minstart = time.time()
 
 
 while True:
-    ## Local Optimization
+    # Local Optimization
     # LN_COBYLA, LN_BOBYQA, LN_NEWUOA, LN_NEWUOA_BOUND, LN_PRAXIS, LN_NELDERMEAD, LN_SBPLX
     if run > 0:
-        ResCoeff = support.downscalematrix(ResCoeff, conf.MATCHED)
-        initvect = support.mattov(ResCoeff)
+        ResCoeff = support.downscalematrix(ResCoeff, cfg.MATCHED)
+        initvect = support.mat2vec(ResCoeff)
 
     opt = nlopt.opt(nlopt.LN_SBPLX, len(initvect))
     opt.set_min_objective(support.function)
     tol = np.asarray([0.1] * len(initvect))
-    # opt.add_equality_mconstraint(eqconstr, tol)
-    # opt.add_inequality_mconstraint(inconstr, tol)
+    # opt.add_equality_mconstraint(equality_constr, tol)
+    # opt.add_inequality_mconstraint(inequality_constr, tol)
     opt.set_initial_step([0.2] * len(initvect))
     if run > 0: opt.set_initial_step([0.9] * len(initvect))
     # opt.set_initial_step(np.random.rand(len(initvect)));
@@ -172,8 +170,8 @@ while True:
     upbound = [1.] * len(initvect)
     lowbound = [-1.] * len(initvect)
 
-    nodes = ambicl.get_ambisonic_coeffs(conf.PHI, conf.THETA, 'basic', conf.DEG, 0)
-    nodes = support.downscalematrix(nodes, conf.MATCHED)
+    nodes = ambicl.get_ambisonic_coeffs(cfg.PHI, cfg.THETA, 'basic', cfg.DEG, 0)
+    nodes = support.downscalematrix(nodes, cfg.MATCHED)
     # calculates the coefficients in the basic or naive scheme.
     # These values are used to figure out which speakers lay in the nodes of some spherical harmonic
     nodes, upbound, lowbound = support.zeroing_bounds(nodes, upbound, lowbound, run)
@@ -193,12 +191,12 @@ while True:
         opt.set_xtol_abs(10e-8)
         opt.set_ftol_abs(10e-8)
 
-    ## getting the NEW minimization matrix
+    # getting the NEW minimization matrix
     res = opt.optimize(initvect)
     result = opt.last_optimize_result()  # alternative way to get the result
 
-    ResCoeff = support.vtomat(res)
-    ResCoeff = support.upscalematrix(ResCoeff, conf.MATCHED)
+    ResCoeff = support.vec2mat(res)
+    ResCoeff = support.upscalematrix(ResCoeff, cfg.MATCHED)
 
     print "Function value for Naive: ", support.function(Guess0, coeffDir[:]), " for Pinv: ", \
         support.function(GuessPinv, coeffDir[:]), " for NL-min: ", \
@@ -208,16 +206,16 @@ while True:
     minstart = time.time()
 
     #####################
-    ## exit condition
+    # exit condition
     # if (run>0 and (str(prog[run-1])[0:6]==str(prog[run])[0:6] or prog[run]>min(prog)+1)): break # for PRAXIS use this
     if (run > 0 and ("{:7.3f}".format(prog[run - 1]) == "{:7.3f}".format(prog[run]) or
-                             prog[run] > min(prog) + 1) or not conf.MUTESPKRS):
+                             prog[run] > min(prog) + 1) or not cfg.mute_small_coeffs):
         break  # for SBPLX use this
     run += 1
 
-#####################################
-## RESULTS 
-#####################################
+#############
+#  RESULTS  #
+#############
 print "Minimization Results:"
 if result == nlopt.SUCCESS:         logging.info("Successful minimization")
 if result == nlopt.STOPVAL_REACHED: logging.info("Optimization stopped because stopval was reached")
@@ -235,74 +233,73 @@ if result == nlopt.FORCED_STOP:     logging.error("Halted because of a forced te
                                                   "the user called nlopt_force_stop(opt) on the optimization's "
                                                   "nlopt_opt object opt from the user's objective function or constraints.")
 
-ResCoeff = support.vtomat(res)
+ResCoeff = support.vec2mat(res)
 # np.reshape(res, ((DEG+1)**2,NSPKmatch))
-ResCoeff = support.upscalematrix(ResCoeff, conf.MATCHED)
+ResCoeff = support.upscalematrix(ResCoeff, cfg.MATCHED)
 
 print "\nLF matrix\n", GuessPinv.T
 print "\nCoefficients \n", ResCoeff.T
 if ResCoeff.T[abs(ResCoeff.T > 1.)].any(): logging.warning("WARNING: You reached a bad minimum.")
 
-##############################
-## PLOTTING
-##############################
+##############
+#  PLOTTING  #
+##############
 # results plots
-coeffPl = ambicl.get_ambisonic_coeffs(phiPl, thetaPl, 'basic', conf.DEG, 0)
+coeffPl = ambicl.get_ambisonic_coeffs(phiPl, thetaPl, 'basic', cfg.DEG, 0)
 sij = support.Sij(ResCoeff, coeffPl, Npt)
-pressure, V, energyD, J, Vradial, Jradial, Vtang, Jtang = support.physDir(sij, phiPl, thetaPl)
-if conf.DEC != 'basic':
-   ptt.Polar(conf, "Horizontal", phi[theta == 0.], energyD[theta == 0.], Jradial[theta == 0.], Jtang[theta == 0.],
+pressure, V, energyD, J, Vradial, Jradial, Vtang, Jtang = support.directional_components(sij, phiPl, thetaPl)
+if cfg.DEC != 'basic':
+   ptt.polar_plot(cfg, "Horizontal", phi[theta == 0.], energyD[theta == 0.], Jradial[theta == 0.], Jtang[theta == 0.],
              ('energy', 'intensity L', 'intensity T'))
-if conf.DEC == 'basic':
-    ptt.Polar(conf, "Horizontal", phi[theta == 0.], pressure[theta == 0.], Vradial[theta == 0.], Vtang[theta == 0.],
+if cfg.DEC == 'basic':
+    ptt.polar_plot(cfg, "Horizontal", phi[theta == 0.], pressure[theta == 0.], Vradial[theta == 0.], Vtang[theta == 0.],
               ('pressure', 'velocity L', 'velocity T'))
 
-if conf.nD == '3D':
-    if conf.DEC != 'basic':
-        ptt.Polar(conf, "Vertical", theta[phi == 0], energyD[phi == 0], Jradial[phi == 0], Jtang[phi == 0],
+if cfg.nD == '3D':
+    if cfg.DEC != 'basic':
+        ptt.polar_plot(cfg, "Vertical", theta[phi == 0], energyD[phi == 0], Jradial[phi == 0], Jtang[phi == 0],
                   ('energy', 'intensity L', 'intensity T'))
-    if conf.DEC == 'basic':
-        ptt.Polar(conf, "Vertical", theta[phi == 0], pressure[phi == 0], Vradial[phi == 0], Vtang[phi == 0],
+    if cfg.DEC == 'basic':
+        ptt.polar_plot(cfg, "Vertical", theta[phi == 0], pressure[phi == 0], Vradial[phi == 0], Vtang[phi == 0],
                   ('pressure', 'velocity L', 'velocity T'))
 
-###SpeakersPlotting(phi, theta, Jradial)
+###threed_polar_plot(phi, theta, Jradial)
 
 print "Elapsed time ", time.time() - start
 
 ###############################
 # output some files
-filename = str(conf.DEG) + "-" + str(conf.DEC) + "-rem" + str(conf.AUTOREM)
+filename = str(cfg.DEG) + "-" + str(cfg.DEC) + "-rem" + str(cfg.autoexclude_regions_with_no_spkrs_binary)
 np.savetxt(filename + ".idhoa", ResCoeff.T, fmt="%f", delimiter="  ")
 np.savetxt(filename + "-Gpinv.idhoa", GuessPinv.T, fmt="%f", delimiter="  ")
 np.savetxt(filename + "-G0.idhoa", Guess0.T, fmt="%f", delimiter="  ")
 
-##
 # Output to a python file for later use (as simple as import the python file)
-aux.outp("Layout",  conf.case, pyfilename)
-aux.outp("DEC",     conf.DEC, pyfilename)
-aux.outp('PHI',     conf.PHI, pyfilename)
-aux.outp('THETA',   conf.THETA, pyfilename)
-aux.outp('DEC',     conf.DEC, pyfilename)
-aux.outp('DEG',     conf.DEG, pyfilename)
-aux.outp('nD',      conf.nD, pyfilename)
-aux.outp('NSPK',    conf.NSPK, pyfilename)
-aux.outp('thetaThreshold', conf.thetaThreshold, pyfilename)
-aux.outp('phiTest', conf.phiTest, pyfilename)
-aux.outp('thetaTest', conf.thetaTest, pyfilename)
-aux.outp('NPOINTS', conf.NPOINTS, pyfilename)
-aux.outp('SEED',    conf.SEED, pyfilename)
-aux.outp('WfrontVec', conf.WfrontVec, pyfilename)
-aux.outp('WplaneVec', conf.WplaneVec, pyfilename)
-aux.outp('WbinVec', conf.WbinVec, pyfilename)
-aux.outp('WremVec', conf.WremVec, pyfilename)
-aux.outp("CP ", conf.CP, pyfilename)
-aux.outp("CV ", conf.CV, pyfilename)
-aux.outp("CE ", conf.CE, pyfilename)
-aux.outp("CR ", conf.CR, pyfilename)
-aux.outp("CT ", conf.CT, pyfilename)
-aux.outp("CPH", conf.CPH, pyfilename)
-aux.outp("MATCHSPK", conf.MATCHSPK, pyfilename)
-aux.outp("MATCHTOL", conf.MATCHTOL, pyfilename)
+aux.outp("Layout",  cfg.case, pyfilename)
+aux.outp("DEC",     cfg.DEC, pyfilename)
+aux.outp('PHI',     cfg.PHI, pyfilename)
+aux.outp('THETA',   cfg.THETA, pyfilename)
+aux.outp('DEC',     cfg.DEC, pyfilename)
+aux.outp('DEG',     cfg.DEG, pyfilename)
+aux.outp('nD',      cfg.nD, pyfilename)
+aux.outp('NSPK',    cfg.NSPK, pyfilename)
+aux.outp('thetaThreshold', cfg.thetaThreshold, pyfilename)
+aux.outp('phiTest', cfg.phiTest, pyfilename)
+aux.outp('thetaTest', cfg.thetaTest, pyfilename)
+aux.outp('NPOINTS', cfg.NPOINTS, pyfilename)
+aux.outp('SEED',    cfg.SEED, pyfilename)
+aux.outp('WfrontVec', cfg.WfrontVec, pyfilename)
+aux.outp('WplaneVec', cfg.WplaneVec, pyfilename)
+aux.outp('WbinVec', cfg.WbinVec, pyfilename)
+aux.outp('WremVec', cfg.WremVec, pyfilename)
+aux.outp("CP ", cfg.CP, pyfilename)
+aux.outp("CV ", cfg.CV, pyfilename)
+aux.outp("CE ", cfg.CE, pyfilename)
+aux.outp("CR ", cfg.CR, pyfilename)
+aux.outp("CT ", cfg.CT, pyfilename)
+aux.outp("CPH", cfg.CPH, pyfilename)
+aux.outp("match_symmetric_spkrs", cfg.match_symmetric_spkrs, pyfilename)
+aux.outp("match_tolerance", cfg.match_tolerance, pyfilename)
 aux.outp("ResCoeff", ResCoeff, pyfilename)
 aux.outp("Guess0",   Guess0, pyfilename)
 aux.outp("GuessPinv", GuessPinv, pyfilename)
@@ -311,35 +308,33 @@ aux.outp("nonzeroprog", nonzeroprog, pyfilename)
 aux.outp("tprogress", tprogress, pyfilename)
 aux.outp("time", time.time() - start, pyfilename)
 
-##
 # save MATLAB output
-# patched by AH for compatibility with adt 
+# patched by Aaron Heller for compatibility with adt
 # bitbucket.org/ambidecodertoolbox/adt.git
-#import scipy.io
-#import os.path
-#
-#scipy.io.savemat(os.path.expanduser(OUTFILE),
-#                 {'ResCoeff': ResCoeff,
-#                  'Naive': Guess0,
-#                  'Pinv': GuessPinv,
-#                  'PHI': PHI,
-#                  'THETA': THETA,
-#                  'DEC': DEC,
-#                  'DEG': DEG,
-#                  'NSPK': NSPK,
-#                  'thetaThreshold': thetaThreshold,
-#                  'phiTest': phiTest,
-#                  'thetaTest': thetaTest,
-#                  'NPOINTS': NPOINTS,
-#                  'WfrontVec': WfrontVec,
-#                  'WplaneVec': WplaneVec,
-#                  'WbinVec': WbinVec,
-#                  'WremVec': WremVec})
-##
-###############################
+if cfg.is_mat_out_file:
+    import scipy.io
+    import os.path
+    
+    scipy.io.savemat(os.path.expanduser(cfg.matlab_filename),
+                    {'ResCoeff': ResCoeff,
+                     'Naive': Guess0,
+                     'Pinv': GuessPinv,
+                     'PHI': cfg.PHI,
+                     'THETA': cfg.THETA,
+                     'DEC': cfg.DEC,
+                     'DEG': cfg.DEG,
+                     'NSPK': cfg.NSPK,
+                     'thetaThreshold': cfg.thetaThreshold,
+                     'phiTest': cfg.phiTest,
+                     'thetaTest': cfg.thetaTest,
+                     'NPOINTS': cfg.NPOINTS,
+                     'WfrontVec': cfg.WfrontVec,
+                     'WplaneVec': cfg.WplaneVec,
+                     'WbinVec': cfg.WbinVec,
+                     'WremVec': cfg.WremVec})
 
 
 print "Function value for Naive: ", support.function(Guess0, coeffDir[:]), " for Pinv: ", \
     support.function(GuessPinv, coeffDir[:]), " for NL-min: ", support.function(ResCoeff, coeffDir[:])
 
-wait = raw_input()
+# wait = raw_input()

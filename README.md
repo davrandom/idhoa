@@ -88,23 +88,27 @@ The angular coordinates (theta and phi) of the loudspeakers, in the usual acoust
 
 
     * Flags
-        1. MUTESPKRS - tries to put to zero the smallest coefficients (at the moment if smaller than 3*10e-4). Pros: This can help to mute some misplaced spekers that are not usefully contributing to the decoding. Cons: time consuming because it runs serveral times the minimization algorithm. (TBD: write a note on the exit strategy from the loop) 
+        1. mute_small_coeffs - tries to put to zero the smallest coefficients (at the moment if smaller than 3*10e-4). Pros: This can help to mute some misplaced spekers that are not usefully contributing to the decoding. Cons: time consuming because it runs serveral times the minimization algorithm. (TBD: write a note on the exit strategy from the loop)
 
-        2. AUTOREM - removes the sampling points (over the sphere) that are too far from the loudspeakers. Use this flag ONLY if you layout is not fully spherical but has some areas where there are no louspeakers. Pros: The algorithm doesn't try to optimize in regions where there are no loudspeakers. This is good because otherwise the existing loudspeakers will have to try to compensate for the missing ones. Cons: ?. It's a binary mask.
+        2. autoexclude_regions_with_no_spkrs_binary - removes the sampling points (over the sphere) that are too far from the loudspeakers. Use this flag ONLY if you layout is not fully spherical but has some areas where there are no louspeakers. Pros: The algorithm doesn't try to optimize in regions where there are no loudspeakers. This is good because otherwise the existing loudspeakers will have to try to compensate for the missing ones. Cons: ?. It's a binary mask.
 
-        3. PREFHOM - means "Prefere Homogeneous", if true tries to smooth the differences between the coefficients. Pros: Cons:
+        3. prefer_homogeneous_coeffs - means "Prefere Homogeneous", if true tries to smooth the differences between the coefficients. Pros: Cons:
 
-        4. WFRONT - gives priority to the front in optimizing the objective function
+        4. prefer_front - gives priority to the front in optimizing the objective function
 
-        5. WPLANE - gives priority to the horizontal plane in optimizing the objective function
+        5. prefer_horiz_plane - gives priority to the horizontal plane in optimizing the objective function
 
-        6. WBIN - you can implement a "binary mask" to remove unused areas of the sphere. This in principle can be done automatically just by using AUTOREM
+        6. exclude_with_theta_binary_mask - you can implement a "binary mask" to remove unused areas of the sphere. This in principle can be done automatically just by using autoexclude_regions_with_no_spkrs_binary
 
-        7. WAUTOREM - performs almost the same operation that AUOTREM does but using weights into the objective function. This way -if you modify the weight coefficients in "function" inside functions.py- you can adjust the weight that you give to the missing area (does this have any advantage? maybe). If you just want to remove the uncovered area then it's faster to use AUTOREM.
+        7. autoexclude_regions_with_no_spkrs_smooth - performs almost the same operation that AUOTREM does but using weights into the objective function. This way -if you modify the weight coefficients in "function" inside functions.py- you can adjust the weight that you give to the missing area (does this have any advantage? maybe). If you just want to remove the uncovered area then it's faster to use autoexclude_regions_with_no_spkrs_binary.
+
+        8. match_symmetric_spkrs - will match symmetric speakers speeding up the minimization process and giving symetric coefficients to symetric speakers.
+
+        9. match_tolerance - tolerance for match_symmetric_spkrs
 
 2. Then you might want to have a look at the most important parts of the main.py
 The most important part is the MINIMIZATION section.
-* a "while" loop repeats the minimization process until some condition is met (this if AUTOREM flag is true). Why? Because AUTOREM tries to set to zero small coefficients after the minimization process. Then we perform the minimization another time, to be sure that the other coefficients adjust to the new added constraint ... and maybe some other coefficient will become small enough to be neglected.
+* a "while" loop repeats the minimization process until some condition is met (this if autoexclude_regions_with_no_spkrs_binary flag is true). Why? Because autoexclude_regions_with_no_spkrs_binary tries to set to zero small coefficients after the minimization process. Then we perform the minimization another time, to be sure that the other coefficients adjust to the new added constraint ... and maybe some other coefficient will become small enough to be neglected.
 * inside the loop the real minimization is performed. 
     * First the nlopt algorithm is chosen. Several choices are possible ([have a look at this](http://ab-initio.mit.edu/wiki/index.php/NLopt_Algorithms)). I choose the LN\_SBPLX because it is both fast and accurate for the purpose. Note that you might want to change the exit condition of the a) while loop accordingly to the characteristics of your algorithm.
     Then you ask nlopt to minimize the objective function called "function" (defined in functions.py), and some parameters are set (just follow the [instructions](http://ab-initio.mit.edu/wiki/index.php/NLopt_Python_Reference))
@@ -119,7 +123,7 @@ From command line interface:
 python main.py example.ini
 
 You should start to see some plots: the first showing your layout in spherical coordinates (with radius 1). If you are satisfied, close it.
-Then, if you choose WBIN or AUTOREM, you will see the points used to measure the objective function. If you are satisfied, close it.
+Then, if you choose exclude_with_theta_binary_mask or autoexclude_regions_with_no_spkrs_binary, you will see the points used to measure the objective function. If you are satisfied, close it.
 Then you should start to see some other plots appearing showing the performance of the naive decoding. Now the program is running, and you have to wait for the minimization results. This may last from fractions of a second (simple 2D layouts) to minutes (crazy irregular 3D layouts ;) ).
 
 
@@ -143,6 +147,6 @@ before running the program main.py
 
 
 ## Notes ##
-### Why AUTOREM makes sense? ###
+### Why autoexclude_regions_with_no_spkrs_binary makes sense? ###
 For several reasons. One interesting reasons is that it may happen that your layout is not only irregular but also "strange"... it is not fully spherical and it is not exactly an half sphere (a dome). So how do you calculate how many orders of Ambisonics you can aim to reproduce? 
 This can be a question that can have a difficult answer. If you just run the program on your "strange" layout it will calculate the coefficients up to an order in which the coefficients are "sufficiently" different from zero. By looking at the coefficients values you can identify up to which order they are different from zero and then decode for that order. (btw I suggest to re-run the code specifying the lower order)

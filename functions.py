@@ -98,7 +98,7 @@ class ambisoniClass:
         self.inversion = inversion
 
         ################################
-        ## horizontal Ambisonics only ##
+        #  horizontal Ambisonics only  #
         ################################
         if self.nD == '2D':
             self._2D()
@@ -132,10 +132,9 @@ class ambisoniClass:
             if self.DEG >= 6:
                 raise ValueError("DEG =", self.DEG, " is not implemented yet\n")
 
-                #####################################################
-                #  Calculating the decoding dependent coefficients  #
-                #####################################################
-            # TOFIX TOBEDONE FIXME
+            #####################################################
+            #  Calculating the decoding dependent coefficients  #
+            #####################################################
             if self.DEC == 'basic':
                 for i in range(0, self.DEG + 1):
                     g0[i] = 1.
@@ -158,8 +157,8 @@ class ambisoniClass:
                 raise ValueError('Decoding scheme unknow: ', self.DEC, ' Possible ones are: basic, maxRe, phase')
 
             ##########################################
-            ## Calculating the "naive" coefficients ##
-            ## in the N2D convention! careful!      ##
+            #  Calculating the "naive" coefficients  #
+            #  in the N2D convention! careful!       #
             ##########################################
             for i in range(0, len(self.phi)):
                 if self.DEG >= 0:
@@ -243,7 +242,7 @@ class ambisoniClass:
                 coeffs = np.linalg.pinv(coeffs, rcond=1e-8).T / NUM
                 coeffs[abs(coeffs) < 1e-8] = 0.  # because inversion gives some very small values somewhere
 
-            ## MULTIPLYING FOR THE SELECTED DECODING SCHEME
+            # MULTIPLYING FOR THE SELECTED DECODING SCHEME
             coeff = np.empty(coeffs.shape, dtype=np.float64)
             g1[0] = g0[0]
             for i in range(self.DEG + 1):
@@ -254,7 +253,6 @@ class ambisoniClass:
             self.coeff = coeff
 
     def _3D(self):
-        # FIXME: this is for nD == '3D' 
         # things to be initializated
         NUM = len(self.phi)
         g1 = [None] * (self.DEG + 1)
@@ -502,8 +500,8 @@ class ambisoniClass:
         g0 = [None] * (self.DEG + 1)
         g1 = [None] * (self.DEG + 1)
 
-        g0d = np.sqrt(3. * NUM / 4.)  # from Dani 1st order Ambisonics
-        g1d = g0d * 1. / 3.  # from Dani 1st order Ambisonics
+        g0d = np.sqrt(3. * NUM / 4.)
+        g1d = g0d * 1. / 3.
         g1p = [None] * (self.DEG + 1)
 
         for i in range(0, self.DEG + 1):
@@ -528,12 +526,12 @@ class Support:
         self.THETA  = self.cfg.THETA
         self.NSPK   = self.cfg.NSPK
         self.NPOINTS    = self.cfg.NPOINTS
-        self.MATCHSPK   = self.cfg.MATCHSPK
+        self.match_symmetric_spkrs   = self.cfg.match_symmetric_spkrs
         self.NSPKmatch  = self.cfg.NSPKmatch
         self.coeffDir   = None
 
     ##########################
-    ## supporting functions ##
+    #  supporting functions  #
     ##########################
     def Sij(self, coeffSpk, coeffDir, NSphPt):
         NSPK = self.cfg.NSPK
@@ -547,7 +545,7 @@ class Support:
             raise ValueError("Wrong dimensions in Sij. Should be (%i,%i) but it's (%i,%i) \n" % (NSPK, NSphPt, a, b))
         return sij
 
-    def physOmni(self, Sij):
+    def omni_components(self, Sij):
         # LOW FREQUENCIES
         # pressure
         pressure = sum(Sij)
@@ -604,7 +602,7 @@ class Support:
 
         return np.sqrt(Sum)
 
-    def physDir(self, Sij, phi, theta):
+    def directional_components(self, Sij, phi, theta):
         phi = np.asarray(phi)
         theta = np.asarray(theta)
         Zx = np.cos(phi) * np.cos(theta)
@@ -615,7 +613,7 @@ class Support:
 
         Z = Zx, Zy, Zz
 
-        press, V, energyD, J = self.physOmni(Sij)
+        press, V, energyD, J = self.omni_components(Sij)
 
         Vradial = self.Radial(V, Z)
         Jradial = self.Radial(J, Z)
@@ -635,7 +633,7 @@ class Support:
         return oppGain
 
     @staticmethod
-    def sph2cart(phi, theta):
+    def sph2cart_angles_only(phi, theta):
         """Acoustics convention!"""
         x = np.cos(phi) * np.cos(theta)
         y = np.sin(phi) * np.cos(theta)
@@ -643,7 +641,7 @@ class Support:
         return x, y, z
 
     @staticmethod
-    def Physph2cart(phi, theta):
+    def sph2cart_phys(phi, theta):
         """Physics convention!"""
         x = np.cos(phi) * np.sin(theta)
         y = np.sin(phi) * np.sin(theta)
@@ -651,7 +649,7 @@ class Support:
         return x, y, z
 
     @staticmethod
-    def PlotOverSphere(phi, theta, rho):
+    def sph2cart_acoustics(phi, theta, rho):
         """Acoustics convention!"""
         x = np.cos(phi) * np.cos(theta) * rho
         y = np.sin(phi) * np.cos(theta) * rho
@@ -668,7 +666,7 @@ class Support:
         theta = algopy.UTPM.init_hessian(theta)
         return algopy.UTPM.extract_hessian(len(theta), f(theta))
 
-    def vtomat(self, vector):
+    def vec2mat(self, vector):
         if self.nD == "2D":
             tmp = vector.reshape((self.DEG * 2 + 1), self.NSPKmatch)
         elif self.nD == "3D":
@@ -677,7 +675,7 @@ class Support:
             raise ValueError("Failing during conversion from vector to matrix.")
         return tmp
 
-    def mattov(self, mat):
+    def mat2vec(self, mat):
         if self.nD == "2D":
             tmp = mat.reshape((1, (self.DEG * 2 + 1) * self.NSPKmatch))[0]
         elif self.nD == "3D":
@@ -719,21 +717,21 @@ class Support:
         # in 3D
         if self.cfg.nD == "3D":
             if (shapeCoeff == ((self.cfg.DEG + 1) ** 2 * self.cfg.NSPKmatch,)):
-                VarCoeffSpk = self.vtomat(VarCoeffSpk)
+                VarCoeffSpk = self.vec2mat(VarCoeffSpk)
             elif (shapeCoeff == ((self.cfg.DEG + 1) ** 2 * self.cfg.NSPK,)):
                 raise ValueError("Here the dimension is " + str(shapeCoeff) + " while it should be " + str(
                     ((self.cfg.DEG + 1) ** 2 * self.cfg.NSPKmatch,)))
             elif (shapeCoeff != ((self.cfg.DEG + 1) ** 2, self.cfg.NSPKmatch)) and (shapeCoeff != ((self.cfg.DEG + 1) ** 2, self.cfg.NSPK)):
                 raise ValueError("Strange dimensions of VarCoeffSpk in -function-." + str(shapeCoeff))
 
-            if self.cfg.MATCHSPK: VarCoeffSpk = self.upscalematrix(VarCoeffSpk, self.cfg.MATCHED)
+            if self.cfg.match_symmetric_spkrs: VarCoeffSpk = self.upscalematrix(VarCoeffSpk, self.cfg.MATCHED)
             if (np.shape(VarCoeffSpk) != ((self.cfg.DEG + 1) ** 2, self.cfg.NSPK)):
                 raise ValueError("Here the matrix should be ((DEG+1)**2,NSPK)")
 
         # in 2D
         if self.cfg.nD == "2D":
             if (shapeCoeff == ((self.cfg.DEG * 2 + 1) * self.cfg.NSPKmatch,)):
-                VarCoeffSpk = self.vtomat(VarCoeffSpk)
+                VarCoeffSpk = self.vec2mat(VarCoeffSpk)
             elif (shapeCoeff == ((self.cfg.DEG * 2 + 1) * self.cfg.NSPK,)):
                 raise ValueError(
                     "Here the dimension is " + str(shapeCoeff) + " while it should be " + str(
@@ -741,7 +739,7 @@ class Support:
             elif (shapeCoeff != ((self.cfg.DEG * 2 + 1), self.cfg.NSPKmatch)) and (shapeCoeff != ((self.cfg.DEG * 2 + 1), self.cfg.NSPK)):
                 raise ValueError("Strange dimensions of VarCoeffSpk in -function-." + str(shapeCoeff))
 
-            if self.cfg.MATCHSPK: VarCoeffSpk = self.upscalematrix(VarCoeffSpk, self.cfg.MATCHED)
+            if self.cfg.match_symmetric_spkrs: VarCoeffSpk = self.upscalematrix(VarCoeffSpk, self.cfg.MATCHED)
             if (np.shape(VarCoeffSpk) != ((self.cfg.DEG * 2 + 1), self.cfg.NSPK)):
                 raise ValueError("Here the matrix should be ((DEG*2+1),NSPK): (%d,%d)" % ((self.cfg.DEG * 2 + 1), self.cfg.NSPK))
 
@@ -751,14 +749,14 @@ class Support:
         Mj = np.ones(self.coeffDir.shape[1])  # biasing factor dependent on direction j
 
         sij = self.Sij(VarCoeffSpk, self.coeffDir, self.cfg.NPOINTS)
-        pressure, V, energyD, J, Vradial, Jradial, Vtang, Jtang = self.physDir(sij, self.cfg.phiTest, self.cfg.thetaTest)
+        pressure, V, energyD, J, Vradial, Jradial, Vtang, Jtang = self.directional_components(sij, self.cfg.phiTest, self.cfg.thetaTest)
 
         # weighting functions
-        if self.cfg.WFRONT: Wj = Wj * self.cfg.WfrontVec  # maybe it's better if you calculate Wfront Wplane and Wbinary outside the function, so that you calculate them only once...
-        if self.cfg.WPLANE: Wj = Wj * self.cfg.WplaneVec
-        if self.cfg.WBIN:   Wj = Wj * self.cfg.WbinVec
-        if self.cfg.WAUTOREM: Mj = Mj * self.cfg.WremVec
-        if self.cfg.WFRONT or self.cfg.WPLANE or self.cfg.WBIN: Wj = Wj * float(len(Wj)) / sum(Wj)
+        if self.cfg.prefer_front: Wj = Wj * self.cfg.WfrontVec  # maybe it's better if you calculate Wfront Wplane and Wbinary outside the function, so that you calculate them only once...
+        if self.cfg.prefer_horiz_plane: Wj = Wj * self.cfg.WplaneVec
+        if self.cfg.exclude_with_theta_binary_mask:   Wj = Wj * self.cfg.WbinVec
+        if self.cfg.autoexclude_regions_with_no_spkrs_smooth: Mj = Mj * self.cfg.WremVec
+        if self.cfg.prefer_front or self.cfg.prefer_horiz_plane or self.cfg.exclude_with_theta_binary_mask: Wj = Wj * float(len(Wj)) / sum(Wj)
 
         if self.cfg.DEC == 'basic':
             Tpressure = ((1. - pressure) ** 2 * Wj * Mj) / self.cfg.NPOINTS
@@ -774,10 +772,10 @@ class Support:
             TJrad = ((1. - Jradial) ** 2 * Wj * Mj) / self.cfg.NPOINTS
             TJtang = ((Jtang) ** 2 * Wj * Mj) / self.cfg.NPOINTS
 
-            if self.cfg.PREFHOM:
+            if self.cfg.prefer_homogeneous_coeffs:
                 Tvar = np.var(VarCoeffSpk[0]) / (np.mean(VarCoeffSpk[0])) ** 2
 
-            if (self.cfg.WAUTOREM or self.cfg.WBIN):
+            if (self.cfg.autoexclude_regions_with_no_spkrs_smooth or self.cfg.exclude_with_theta_binary_mask):
                 Tpressure2 = (~self.cfg.WremVec) * ((0.5 - pressure) ** 2 * Wj) / self.cfg.NPOINTS  # Pressure -3 dB
                 TVlon2 = (~self.cfg.WremVec) * ((1. - Vradial) ** 2 * Wj) / self.cfg.NPOINTS
                 TVtang2 = (~self.cfg.WremVec) * ((Vtang) ** 2 * Wj) / self.cfg.NPOINTS
@@ -795,9 +793,9 @@ class Support:
             TJrad2 = 0
             TenergyD2 = 0
             TJtang2 = 0
-            if self.cfg.PREFHOM:
+            if self.cfg.prefer_homogeneous_coeffs:
                 Tvar = np.var(VarCoeffSpk[0]) / (np.mean(VarCoeffSpk[0])) ** 2
-            if (self.cfg.WAUTOREM or self.cfg.WBIN):
+            if (self.cfg.autoexclude_regions_with_no_spkrs_smooth or self.cfg.exclude_with_theta_binary_mask):
                 TenergyD2 = (~self.cfg.WremVec) * ((0.5 - energyD) ** 2 * Wj) / self.cfg.NPOINTS  # Energy -3 dB
                 TJrad2 = (~self.cfg.WremVec) * ((1. - Jradial) ** 2 * Wj) / self.cfg.NPOINTS
                 TJtang2 = (~self.cfg.WremVec) * ((Jtang) ** 2 * Wj) / self.cfg.NPOINTS
@@ -811,13 +809,12 @@ class Support:
             TJrad = ((1. - Jradial) ** 2 * Wj * Mj) / self.cfg.NPOINTS
             TJtang = ((Jtang) ** 2 * Wj * Mj) / self.cfg.NPOINTS
             Tvar = 0
-            if self.cfg.PREFHOM:
+            if self.cfg.prefer_homogeneous_coeffs:
                 Tvar = np.var(VarCoeffSpk[0]) / (np.mean(VarCoeffSpk[0])) ** 2
             ToppGain = np.linalg.norm(self.oppGain(sij)) ** 2 / self.cfg.NPOINTS
 
             target = np.sum(self.cfg.CE * TenergyD + self.cfg.CR * TJrad + self.cfg.CT * TJtang) \
                             + self.cfg.CPH * ToppGain * self.cfg.CV * Tvar
-            # FIXME: missing some extra factors (see dani's paper page 5)
         else:
             target = 0
             raise ValueError("The decoding you chose is not implemented.")
@@ -825,7 +822,7 @@ class Support:
 
     # with nlopt you can also write linear and non linear constraints... have a look at the reference
     # http://ab-initio.mit.edu/wiki/index.php/NLopt_Python_Reference
-    def eqconstr(self, result, x, grad):
+    def equality_constr(self, result, x, grad):
         if grad.size > 0:
             print "gradient to be implemented"
 
@@ -836,7 +833,7 @@ class Support:
                 result[i] = x[i]  # putting to zero the speakers that are in a node of a SH
         return
 
-    def inconstr(self, result, x, grad):
+    def inequality_constr(self, result, x, grad):
         if grad.size > 0:
             print "gradient to be implemented"
 
@@ -863,7 +860,7 @@ class Support:
                     ResShrinked = CoeffMat.T[idx]
                 else:
                     ResShrinked = np.vstack((ResShrinked, CoeffMat.T[idx]))
-        if self.MATCHSPK:
+        if self.match_symmetric_spkrs:
             return ResShrinked.T
         else:
             return CoeffMat
@@ -904,7 +901,7 @@ class Support:
                 else:
                     raise ValueError("Ehm ... this is impossible! [upscalematrix function]")
 
-            if self.MATCHSPK:
+            if self.match_symmetric_spkrs:
                 return ResUp.T
             else:
                 return ResShrinked

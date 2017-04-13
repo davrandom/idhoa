@@ -23,19 +23,16 @@
 * 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 '''
 
-from ConfigParser import SafeConfigParser, ParsingError
-import json
 import numpy as np
 import sys
 import warnings
-import math as mh  ## this is used only for factorial...
-import os
+import math as mh  # this is used only for factorial...
 
 import scipy.io as sio
 
 
 # defining points over the sphere
-def SpherePt(NP, nD):
+def get_points_over_sphere(NP, nD):
     if nD == "2D":
         phiok = [2.0 * np.pi * (float(i) / NP) for i in range(NP)]
         thetaok = [0.0 for i in range(NP)]
@@ -55,146 +52,6 @@ def SpherePt(NP, nD):
 
     if len(phiok) != len(thetaok): sys.exit("Died generating points on the sphere")
     return np.asarray(phiok), np.asarray(thetaok)
-
-
-class configConst:
-    def __init__(self, configfile):
-        self.configfile = configfile
-        self._parse()
-
-    def _parse(self):
-        # Require values
-        try:
-            parser = SafeConfigParser()
-            parser.read(self.configfile)
-
-            self.case = parser.get('Layout', 'name')
-            self.PHI = json.loads(parser.get('Layout', 'PHI'))
-            self.THETA = json.loads(parser.get('Layout', 'THETA'))
-
-            self.OUTFILE = parser.get('Outfiles', 'matlab')
-
-            self.DEC = parser.get('Ambisonics', 'DEC')
-            self.DEG = parser.getint('Ambisonics', 'DEG')
-            self.nD = parser.get('Ambisonics', 'nD')
-
-            self.MUTESPKRS = parser.getboolean('Flags', 'MUTESPKRS')
-            self.AUTOREM = parser.getboolean('Flags', 'AUTOREM')
-            self.PREFHOM = parser.getboolean('Flags', 'PREFHOM')
-            self.WFRONT = parser.getboolean('Flags', 'WFRONT')
-            self.WPLANE = parser.getboolean('Flags', 'WPLANE')
-            self.WBIN = parser.getboolean('Flags', 'WBIN')
-            self.WAUTOREM = parser.getboolean('Flags', 'WAUTOREM')
-            self.thetaThreshold = parser.getint('Flags', 'thetaThreshold')
-            self.MATCHSPK = parser.getboolean('Flags', 'MATCHSPK')
-            self.MATCHTOL = parser.getint('Flags', 'MATCHTOL')
-
-            self.CP = parser.getint('Minimiz', 'CP')
-            self.CV = parser.getint('Minimiz', 'CV')
-            self.CE = parser.getint('Minimiz', 'CE')
-            self.CR = parser.getint('Minimiz', 'CR')
-            self.CT = parser.getint('Minimiz', 'CT')
-            self.CPH = parser.getint('Minimiz', 'CPH')
-
-            self.SEED = parser.getint('Other', 'SEED')
-
-        except ParsingError, err:
-            print 'Could not parse:', err
-
-        ## number of speakers
-        self.NSPK = len(self.PHI)
-
-        self.PHI, self.THETA = fixPHI(self.PHI, self.THETA)
-
-        # set: phiTest, thetaTest, NPOINTS, WfrontVec, WplaneVec, WbinVec, WremVec
-        self._autoinit()
-
-        self.SIGNSvec = SHsigns(self.DEG)
-        if self.MATCHSPK:
-            self.MATCHED, self.PHI, self.THETA = analyzeLayout(self.PHI, self.THETA, self.MATCHTOL * np.pi / 180)
-            self.NSPKmatch = len(self.MATCHED[self.MATCHED >= 0]);
-            self.MAP = MapMatched(self.MATCHED)
-        else:
-            self.NSPKmatch = self.NSPK
-            self.MATCHED = np.zeros(self.NSPK)
-
-    def _autoinit(self):
-        ###############################
-        ## automatic initializations ##
-        ###############################
-        # Threshold for binary masking the lower region
-        self.thetaThreshold *= np.pi / 180.0
-
-        self.phiTest, self.thetaTest = SpherePt(self.SEED, self.nD)  ## generating sampling space points
-
-        if self.AUTOREM:
-            self.phiTest, self.thetaTest = self._autoremoval()  # autoremoving test points without speakers around
-
-        self.WfrontVec = self._Wfront(self.phiTest, self.thetaTest)
-        self.WplaneVec = self._Wplane(self.thetaTest)
-        self.WbinVec = self._Wbinary(self.thetaTest, self.thetaThreshold)
-        self.WremVec = self._Wautoremoval()  # only necessary if WAUTOREM is true...
-        self.NPOINTS = len(self.phiTest)
-
-    #############
-    ## weights ##
-    #############
-
-    @staticmethod
-    def _Wfront(phi, the):
-        # wvect = 1. + np.cos(phi) * np.cos(the)/2.
-        wvect = np.cos(phi) ** 8 * np.cos(the) ** 8 / 2.
-        return wvect
-
-    @staticmethod
-    def _Wplane(the):
-        wvect = 1. + np.cos(the) ** 2.
-        return wvect
-
-    @staticmethod
-    def _Wbinary(the, tThresh):
-        return the > tThresh
-
-
-
-    def _spkDist(self):
-        dvec = np.array([])
-        mins = np.array([])
-        for i, valpi in enumerate(self.PHI):
-            for j, valpj in enumerate(self.PHI):  # you could do probably something like: for j in range(i+1,len(PHI))
-                dvec = np.append(dvec, [angDist(valpi, self.THETA[i], valpj, self.THETA[j])])
-
-            mins = np.append(mins, [min(dvec[dvec != 0])])
-            dvec = np.array([])  # reset dvec
-        mean = np.mean(mins)  # calculates the mean only of the smalles values - the closest speakers
-        return mean
-
-    def _autoremoval(self):
-        mean_spk_dist = self._spkDist()
-        phit = []
-        thetat = []
-        for i, valpi in enumerate(self.phiTest):
-            for j, valpj in enumerate(self.PHI):
-                if angDist(self.phiTest[i], valpi, valpj, self.THETA[j]) < mean_spk_dist * 1.0:
-                    phit.append(self.phiTest[i])
-                    thetat.append(self.thetaTest[i])
-                    break
-        return phit, thetat
-
-    def _Wautoremoval(self):
-        mean_spk_dist = self._spkDist()
-        wvect = []
-        for i, valpi in enumerate(self.phiTest):
-            for j, valpj in enumerate(self.PHI):
-                if angDist(self.phiTest[i], valpi, valpj, self.THETA[j]) < mean_spk_dist * 1.0:
-                    temp = True
-                    # temp = 1
-                    break
-                else:
-                    temp = False
-                    # temp = 0.3
-            wvect.append(temp)
-        return np.asarray(wvect)
 
 
 class WaveletsM:
@@ -348,10 +205,10 @@ def analyzeLayout(PHI, THETA, tol):
     return paired, PHI, THETA
 
 
-def fixPHI(PHI, THETA):
+def fix_phi(PHI, THETA):
     # convert in radiants if necessary
     if (np.asarray(PHI) > 2.0 * np.pi).any():
-        ## conversion in radiants
+        # conversion in radiants
         PHI = [PHI[i] * np.pi / 180.0 for i in range(len(PHI))]
         THETA = [THETA[i] * np.pi / 180.0 for i in range(len(THETA))]
 
@@ -391,7 +248,7 @@ def MapMatched(matched):
 
 
 def fac2(val):
-    ## stupid function to calculate factorial2 not to import another library (scipy)
+    # stupid function to calculate factorial2 not to import another library (scipy)
     if val <= 0:
         return 1.0
     else:
@@ -501,7 +358,7 @@ class Conventions:
             [1.0, np.sqrt(3), np.sqrt(3), np.sqrt(3), np.sqrt(15) / 2, np.sqrt(15) / 2, np.sqrt(5), np.sqrt(15) / 2,
              np.sqrt(15) / 2, np.sqrt(35. / 8.), np.sqrt(35) / 3, np.sqrt(224. / 45.), np.sqrt(7), np.sqrt(224. / 45.),
              np.sqrt(35) / 3, np.sqrt(35. / 8.)])
-        ## http://en.wikipedia.org/wiki/Ambisonic_data_exchange_formats
+        # http://en.wikipedia.org/wiki/Ambisonic_data_exchange_formats
         MAXNtoN3D = np.resize(MAXNtoN3D, (1, (self.deg + 1) ** 2)).flatten()
         if len(MAXNtoN3D) != (self.deg + 1) ** 2: raise ValueError(
             "Conversion between MaxN and N3D is badly implemented: %s vs %s elements." % (
@@ -551,7 +408,7 @@ class Conventions:
         # or http://stackoverflow.com/questions/3891804/how-to-raise-a-warning-in-python-without-stopping-interrupting-the-program
 
     def shrink(self, vector):
-        ## reduction of the 2d ones from (deg+1)**2 to 2*deg+1
+        # reduction of the 2d ones from (deg+1)**2 to 2*deg+1
         if len(vector) != (self.deg + 1) ** 2: raise ValueError("Can't shrink this! Wrong dimension.")
 
         shr = np.asarray([])
@@ -567,9 +424,9 @@ class Conventions:
 class Parser:
     # function for parsing the data
     def _data_parser(self, text, dic, area):
-        ## ignores all the lines that do not contain as firts word the one carried by "area"
-        ## all the others are processed following the rules in dictionary (dic) 
-        ## the text is then splitted into words and returned as an array
+        # ignores all the lines that do not contain as firts word the one carried by "area"
+        # all the others are processed following the rules in dictionary (dic)
+        # the text is then splitted into words and returned as an array
         tmp = text.split()
         if len(tmp) > 0 and tmp[0] == area:
             for i, j in dic.iteritems():
@@ -580,11 +437,11 @@ class Parser:
             return None
 
     def ambdec(self, my_text):
-        ## method that does the actual processing 
+        # method that does the actual processing
         dic = {'add_spkr': ' ', 'add_row': ' ', '^I': ' '}
 
-        ## processing the first part of ambdec config file
-        ## where the information on the layout is stored
+        # processing the first part of ambdec config file
+        # where the information on the layout is stored
         tmp = np.array(["spk_id", "dist", "az", "el", "connect"])
         for line in my_text:
             layout = self._data_parser(text=line, dic=dic, area="add_spkr")
@@ -593,8 +450,8 @@ class Parser:
         self.layout = tmp
         self.layout_data = tmp[1:, 1:4].astype(np.float)
 
-        ## processing the second part of the ambdec config file
-        ## where the decoding coefficients are stored
+        # processing the second part of the ambdec config file
+        # where the decoding coefficients are stored
         tmp = np.array([])
         count = 0
         for line in my_text:
@@ -605,7 +462,7 @@ class Parser:
                 else:
                     tmp = np.vstack((tmp, parsed))
 
-        ## splitting into the two matrices: lf and hf
+        # splitting into the two matrices: lf and hf
         self.lf_mat = tmp[:self.layout_data.shape[0]].astype(np.float)
         self.hf_mat = tmp[self.layout_data.shape[0]:].astype(np.float)
         if self.lf_mat.shape != self.hf_mat.shape: raise ValueError("Something went wrong while parsing ambdec file.")

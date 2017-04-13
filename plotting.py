@@ -1,4 +1,4 @@
-# from functions import PlotOverSphere
+# from functions import sph2cart_acoustics
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -41,38 +41,32 @@ def gainsPlot(title, angle, gains, ticks=[-180, -120, -60, 0, 60, 120, 180]):
     fig.savefig(title + ".eps")
 
 
-def SpherePlotting(title, var):
+def sph2cart_acoustics(phi, theta, rho):
+    """Acoustics convention!"""
+    x = np.cos(phi) * np.cos(theta) * rho
+    y = np.sin(phi) * np.cos(theta) * rho
+    z = np.sin(theta) * rho
+    return x, y, z
+
+
+def threed_polar_plot(phi, theta, rho, numbers=False):
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
-    x, y, z = PlotOverSphere(phiTest, thetaTest, var)
+    x, y, z = sph2cart_acoustics(phi, theta, rho)
 
-    ax.scatter(x, y, z)
-    ax.set_title(title, fontsize=20)
-    # plt.show()
-    fig.savefig("points_over_sphere.eps")
-
-
-def SpeakersPlotting(phi, theta, rho):
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-
-    x, y, z = PlotOverSphere(phi, theta, rho)
-
-    if len(x) > 50:  # fast hack
+    if not numbers:  # fast hack
         sc = ax.scatter(x, y, z)
     else:
         for i in range(len(x)):  # plot each point + it's index as text above
             ax.scatter(x[i], y[i], z[i], color='b')
             ax.text(x[i], y[i], z[i], '%s' % (str(i + 1)), size=14, zorder=1, color='k')
 
-
-            # ax.plot_wireframe(x,y,z, rstride=10, cstride=10)
     # plt.show()
     fig.savefig("speakers_distribution.eps")
 
 
-def Polar(config, title, angle, *variables):
+def polar_plot(config, title, angle, *variables):
     # plt.ion # uncomment to plot
     # radar black, solid grid lines
     plt.rc('grid', color='k', linewidth=1, linestyle='-')
@@ -116,29 +110,8 @@ def Polar(config, title, angle, *variables):
         fig.savefig(str(config.DEG) + "-" + str(config.DEC) + "-" + ti + ".eps")
 
 
-def PlSpherePt(NP):
-    # it is different from SpherePt because has some redundancy at 0 and 2*pi   
-    # you can increase redundancy to ease the plot task...
-    # (plots in vertical plane now are a bit messy)
-    thetaPrev = [(np.pi / 2.0 - (float(i) / NP) * np.pi) for i in range(NP + 1)]
-    theta = []
-    phi = []
-
-    for i in range(len(thetaPrev)):
-        n = max(int(2 * NP * np.cos(thetaPrev[i])), 1)
-        phi.append([(float(jj) / n * 2) * np.pi for jj in range(n + 1)])
-        temp = [thetaPrev[i]] * (n + 1)
-        theta.append(temp)
-
-    phiok = [item for sublist in phi for item in sublist]
-    thetaok = [item for sublist in theta for item in sublist]
-
-    if len(phiok) != len(thetaok): raise ValueError("Died generating points on the sphere")
-    return phiok, thetaok
-
-
-def PlSpherePtRotat(NP, cfg):
-    # it is different from SpherePt because has some redundancy at 0 and 2*pi   
+def points_over_sphere_plotting(NP, cfg):
+    # it is different from points_over_sphere because has some redundancy at 0 and 2*pi
     # you can increase redundancy to ease the plot task...
     # (plots in vertical plane now are a bit messy)
     thetaPrev = [((float(i) / (2 * NP)) * 2.0 * np.pi) for i in range(2 * NP + 1)]
@@ -154,6 +127,7 @@ def PlSpherePtRotat(NP, cfg):
     phiok = [item for sublist in phi for item in sublist]
     thetaok = [item for sublist in theta for item in sublist]
 
-    if len(phiok) != len(thetaok): raise ValueError("Died generating points on the sphere")
+    if len(phiok) != len(thetaok):
+        raise ValueError("Died generating points on the sphere")
 
     return phiok, thetaok
