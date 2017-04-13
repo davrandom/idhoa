@@ -528,15 +528,15 @@ class Support:
         self.NPOINTS    = self.cfg.NPOINTS
         self.match_symmetric_spkrs   = self.cfg.match_symmetric_spkrs
         self.NSPKmatch  = self.cfg.NSPKmatch
-        self.coeffDir   = None
+        self.coffs_in_test_directions   = None
 
     ##########################
     #  supporting functions  #
     ##########################
-    def Sij(self, coeffSpk, coeffDir, NSphPt):
+    def Sij(self, coeffSpk, coffs_in_test_directions, NSphPt):
         NSPK = self.cfg.NSPK
         try:
-            sij = np.dot(coeffSpk.T, coeffDir * NSphPt)  # this will have the dimensions of NSPK*NPOINTS
+            sij = np.dot(coeffSpk.T, coffs_in_test_directions * NSphPt)  # this will have the dimensions of NSPK*NPOINTS
         except ValueError:
             raise ValueError("Wrong dimensions when doing dot product in sij")
 
@@ -745,10 +745,10 @@ class Support:
 
 
         """The function to be minimized"""
-        Wj = np.ones(self.coeffDir.shape[1])  # biasing factor dependent on direction j
-        Mj = np.ones(self.coeffDir.shape[1])  # biasing factor dependent on direction j
+        Wj = np.ones(self.coffs_in_test_directions.shape[1])  # biasing factor dependent on direction j
+        Mj = np.ones(self.coffs_in_test_directions.shape[1])  # biasing factor dependent on direction j
 
-        sij = self.Sij(VarCoeffSpk, self.coeffDir, self.cfg.NPOINTS)
+        sij = self.Sij(VarCoeffSpk, self.coffs_in_test_directions, self.cfg.NPOINTS)
         pressure, V, energyD, J, Vradial, Jradial, Vtang, Jtang = self.directional_components(sij, self.cfg.phiTest, self.cfg.thetaTest)
 
         # weighting functions

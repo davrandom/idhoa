@@ -54,91 +54,7 @@ def get_points_over_sphere(NP, nD):
     return np.asarray(phiok), np.asarray(thetaok)
 
 
-class WaveletsMatrix:
-    def __init__(self, filename):
-        matfile = sio.loadmat(filename)
-        self.az4 = matfile['az'][0]
-        self.el4 = matfile['el'][0]
-
-        self.az0 = matfile['az0'][0]
-        self.el0 = matfile['el0'][0]
-        self.az1 = matfile['az1'][0]
-        self.el1 = matfile['el1'][0]
-        self.az2 = matfile['az2'][0]
-        self.el2 = matfile['el2'][0]
-        self.az3 = matfile['az3'][0]
-        self.el3 = matfile['el3'][0]
-
-        self.s0 = matfile['s0mat']
-        self.s1 = matfile['s1mat']
-        self.s2 = matfile['s2mat']
-        self.s3 = matfile['s3mat']
-        self.s4 = matfile['s4mat']
-
-        self.az     = self.az4
-        self.PHI    = self.az4
-        self.el     = self.el4
-        self.THETA  = self.el4
-        self.phiPl  = self.az4
-        self.thtaPl = self.el4
-        self.coeffs = self.s4
-        self.coeffPl = self.s4
-        self.onepoint_coeffs = self.s4[:, 1]
-
-    def get_az_el(self, level):
-        if level == 0:
-            self.PHI    = self.az0
-            self.THETA  = self.el0
-        elif level == 1:
-            self.PHI    = self.az1
-            self.THETA  = self.el1
-        elif level == 2:
-            self.PHI    = self.az2
-            self.THETA  = self.el2
-        elif level == 3:
-            self.PHI    = self.az3
-            self.THETA  = self.el3
-        elif level == 4:
-            self.PHI    = self.az4
-            self.THETA  = self.el4
-        else:
-            raise ValueError("The wavelet level you asked is not available. Possible values are: 0, 1, 2, 3.")
-
-    def get_matrix(self, level):
-        if level == 0:
-            self.coeffs = self.s0
-        elif level == 1:
-            self.coeffs = self.s1
-        elif level == 2:
-            self.coeffs = self.s2
-        elif level == 3:
-            self.coeffs = self.s3
-        elif level == 4:
-            self.coeffs = self.s4
-        else:
-            raise ValueError("The wavelet level %i is not available. Possible values are: 0, 1, 2, 3, 4." % level)
-
-    def get_coeffs(self, level, idx):
-        if level == 0:
-            get = self.s0
-        elif level == 1:
-            get = self.s1
-        elif level == 2:
-            get = self.s2
-        elif level == 3:
-            get = self.s3
-        elif level == 4:
-            get = self.s4
-        else:
-            raise ValueError("The wavelet level %i is not available. Possible values are: 0, 1, 2, 3, 4." % level)
-
-        try:
-            self.onepoint_coeffs = get[:, idx]
-        except ValueError:
-            raise ValueError("The point %i is not existent." % idx)
-
-
-def angDist(phi1, e1, phi2, e2):
+def angular_distance(phi1, e1, phi2, e2):
     # Implement haversine formula (see Wikipedia)
     dist = 2.0 * np.arcsin(
         np.sqrt((np.sin((e1 - e2) / 2.0)) ** 2 + np.cos(e1) * np.cos(e2) * (np.sin((phi1 - phi2) / 2.0)) ** 2))
@@ -178,7 +94,7 @@ def analyzeLayout(PHI, THETA, tol):
         for jdx in range(idx + 1, mp):
             if (paired[jdx] >= 1): continue
             phj = PHI[jdx]
-            if (angDist(phi, THETA[idx], -phj, THETA[jdx]) < tol):
+            if (angular_distance(phi, THETA[idx], -phj, THETA[jdx]) < tol):
                 # pair found !
                 tdx += 1
 

@@ -30,10 +30,13 @@ import numpy as np
 import auxiliary as aux
 
 
-class configConst:
+class ConfigConstants:
     def __init__(self, configfile):
         self.configfile = configfile
         self._parse()
+        self.projection_guess_matrix = None
+        self.pseudoinv_guess_matrix = None
+        self.obj_minimization_matrix = None
 
     def _parse(self):
         # Require values
@@ -71,8 +74,6 @@ class configConst:
             self.CPH = parser.getint('Minimiz', 'CPH')
 
             self.SEED = parser.getint('Other', 'SEED')
-
-
 
         except ParsingError, err:
             print 'Could not parse:', err
@@ -128,17 +129,15 @@ class configConst:
         return wvect
 
     @staticmethod
-    def _Wbinary(the, tThresh):
-        return the > tThresh
+    def _Wbinary(the, theta_threshold):
+        return the > theta_threshold
 
-
-
-    def _spkDist(self):
+    def _spkrs_distance(self):
         dvec = np.array([])
         mins = np.array([])
         for i, valpi in enumerate(self.PHI):
             for j, valpj in enumerate(self.PHI):  # you could do probably something like: for j in range(i+1,len(PHI))
-                dvec = np.append(dvec, [aux.angDist(valpi, self.THETA[i], valpj, self.THETA[j])])
+                dvec = np.append(dvec, [aux.angular_distance(valpi, self.THETA[i], valpj, self.THETA[j])])
 
             mins = np.append(mins, [min(dvec[dvec != 0])])
             dvec = np.array([])  # reset dvec
@@ -146,23 +145,23 @@ class configConst:
         return mean
 
     def _autoremoval(self):
-        mean_spk_dist = self._spkDist()
+        mean_spk_dist = self._spkrs_distance()
         phit = []
         thetat = []
         for i, valpi in enumerate(self.phiTest):
             for j, valpj in enumerate(self.PHI):
-                if aux.angDist(self.phiTest[i], valpi, valpj, self.THETA[j]) < mean_spk_dist * 1.0:
+                if aux.angular_distance(self.phiTest[i], valpi, valpj, self.THETA[j]) < mean_spk_dist * 1.0:
                     phit.append(self.phiTest[i])
                     thetat.append(self.thetaTest[i])
                     break
         return phit, thetat
 
     def _Wautoremoval(self):
-        mean_spk_dist = self._spkDist()
+        mean_spk_dist = self._spkrs_distance()
         wvect = []
         for i, valpi in enumerate(self.phiTest):
             for j, valpj in enumerate(self.PHI):
-                if aux.angDist(self.phiTest[i], valpi, valpj, self.THETA[j]) < mean_spk_dist * 1.0:
+                if aux.angular_distance(self.phiTest[i], valpi, valpj, self.THETA[j]) < mean_spk_dist * 1.0:
                     temp = True
                     # temp = 1
                     break
