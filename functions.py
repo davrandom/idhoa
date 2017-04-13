@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-'''
+"""
 * This file is part of IDHOA software.
 *
 * Copyright (C) 2013 Barcelona Media - www.barcelonamedia.org
@@ -23,818 +23,888 @@
 * along with this program. If not, see <http://www.gnu.org/licenses/>,
 * or write to the Free Software Foundation, Inc.,
 * 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-'''
+"""
 
-
-
-import sys
 import numpy as np
 from scipy import special, linalg
 import math as mh
-
-from __builtin__ import *
-
-
-## checks
-def controls(NSPK,DEG):
-    if NSPK < (DEG+1)**2:
-        sys.exit("\n##!!!!!!!!!!!!!!!!!!!!!!!!!!##\nYou don't have enough speakers for this decoding order.")
+import logging
+import algopy
 
 
+# checks
+def controls(NSPK, DEG):
+    if NSPK < (DEG + 1) ** 2:
+        raise ValueError("\n##!!!!!!!!!!!!!!!!!!!!!!!!!!##\nYou don't have enough speakers for this decoding order.")
 
 
 def gauss_legendre(n):
     # http://www.scientificpython.net/1/post/2012/04/gausslegendre1.html
-    k=np.arange(1.0,n)       
-    a_band = np.zeros((2,n)) 
-    a_band[1,0:n-1] = k/np.sqrt(4*k*k-1) 
-    x,V = linalg.eig_banded(a_band,lower=True) 
-    w=2*np.real(np.power(V[0,:],2)) 
+    k = np.arange(1.0, n)
+    a_band = np.zeros((2, n))
+    a_band[1, 0:n - 1] = k / np.sqrt(4 * k * k - 1)
+    x, V = linalg.eig_banded(a_band, lower=True)
+    w = 2 * np.real(np.power(V[0, :], 2))
     return x, w
 
+
 def maxReG1(order):
-    x,w = gauss_legendre(order+1)
+    x, w = gauss_legendre(order + 1)
     return max(x)
 
+
 def maxReCoeffs(order):
-    coeffs = [special.legendre(i)(maxReG1(order)) for i in range(order+1)]
+    coeffs = [special.legendre(i)(maxReG1(order)) for i in range(order + 1)]
     return coeffs
 
 
-def basic():
-    g0 = [None]*(DEG+1)
-    g1 = [None]*(DEG+1)
-    for i in range(0,DEG+1):
-        g0[i] = 1.
-        g1[i] = 1.
-    g1[0] = g0[0]
-    return g1
-    
-def maxRe(phi):
-    NUM = len(phi)         # number of speakers
-    g0 = [None]*(DEG+1)
-    g1 = [None]*(DEG+1)
- 
-    g1p = maxReCoeffs(DEG) 
-    Egm = sum([(2.*i+1.)*g1p[i]**2 for i in range(DEG+1)])
-    g0 = [np.sqrt(NUM/Egm)]*4
-    g1 = [g1p[i]*g0[0] for i in range(len(g1p))]
-    
-    g1[0] = g0[0]
-    return g1
-    
-    
-def phase(phi):
-    NUM = len(phi)         # number of speakers
-    g0 = [None]*(DEG+1)
-    g1 = [None]*(DEG+1)
- 
-    g0d = np.sqrt(3. *NUM/4.)            # from Dani 1st order Ambisonics
-    g1d = g0d*1./3.                    # from Dani 1st order Ambisonics
-    g1p = [None]*(DEG+1)
-    
-    for i in range(0,DEG+1):
-        g0[i] = np.sqrt(NUM*(2*DEG+1)) / (DEG+1)
-        g1[i] = g0[i]*(mh.factorial(DEG)*mh.factorial(DEG+1)) / float(mh.factorial(DEG+i+1)*mh.factorial(DEG-i))  # note that g1(0) is equal to g0
-        g1p[i]= (mh.factorial(DEG)*mh.factorial(DEG+1)) / float(mh.factorial(DEG+i+1)*mh.factorial(DEG-i))          # just for debugging purposes
+class ambisoniClass:
+    def __init__(self, configClass):
+        self.cfg = configClass
+        self.phi = self.cfg.PHI
+        self.theta = self.cfg.THETA
+        self.DEC = self.cfg.DEC
+        self.DEG = self.cfg.DEG
+        self.nD = self.cfg.nD
+        self.inversion = 0
+        self.coeffs = None
+        self.W = None
+        self.Y = None; self.Z = None; self.X = None
+        self.V = None; self.T = None; self.R = None; self.S = None; self.U = None; self.Q = None
+        self.O = None; self.M = None; self.K = None; self.L = None; self.N = None; self.P = None
+        self.c12 = None; self.c13 = None; self.c14 = None; self.c15 = None
+        self.c16 = None; self.c17 = None; self.c18 = None; self.c19 = None; self.c20 = None
+        self.c21 = None; self.c22 = None; self.c23 = None; self.c24 = None; self.c25 = None
+        self.c26 = None; self.c27 = None; self.c28 = None; self.c29 = None; self.c30 = None
+        self.c31 = None; self.c32 = None; self.c33 = None; self.c34 = None; self.c35 = None
 
-    g1[0] = g0[0]
-    return g1
- 
+    def get_ambisonic_coeffs(self, phi=None, theta=None, DEC=None, DEG=None, inversion=0):
+        if isinstance(phi, np.ndarray) or isinstance(phi, list):
+            self.phi = phi
+        else:
+            self.phi = self.cfg.PHI
+        if isinstance(theta, np.ndarray) or isinstance(theta, list):
+            self.theta = theta
+        else:
+            self.theta = self.cfg.THETA
+        if DEC:
+            self.DEC = DEC
+        else:
+            self.DEC = self.cfg.DEC
+        if DEG:
+            self.DEG = DEG
+        else:
+            self.DEG = self.cfg.DEG
+        self.inversion = inversion
 
+        ################################
+        ## horizontal Ambisonics only ##
+        ################################
+        if self.nD == '2D':
+            self._2D()
+        else:
+            self._3D()
+        # at the end, please return something ;)
+        return self.coeff
 
+    def _2D(self):
+            # things to be initializated
+            NUM = len(self.phi)
+            g0 = [1.] * (self.DEG + 1)
+            g1 = [1.] * (self.DEG + 1)
+            coeffs = [None] * (len(self.phi))
+            self.W = [None] * (len(self.phi))
+            if self.DEG >= 1:
+                self.X = [None] * (len(self.phi))
+                self.Y = [None] * (len(self.phi))
+            if self.DEG >= 2:
+                self.V = [None] * (len(self.phi))
+                self.U = [None] * (len(self.phi))
+            if self.DEG >= 3:
+                self.Q = [None] * (len(self.phi))
+                self.P = [None] * (len(self.phi))
+            if self.DEG >= 4:
+                self.c8 = [None] * (len(self.phi))
+                self.c9 = [None] * (len(self.phi))
+            if self.DEG >= 5:
+                self.c10 = [None] * (len(self.phi))
+                self.c11 = [None] * (len(self.phi))
+            if self.DEG >= 6:
+                raise ValueError("DEG =", self.DEG, " is not implemented yet\n")
 
-def ambisoniC(phi,theta,DEC,DEG,inversion):
-    NUM = len(phi)         # number of speakers
-    
-    if nD == '3D':
-        #things to be initializated
-        g1 = [None]*(DEG+1)
-        W  = [None]*(len(phi))
-        if DEG>=1:
-            X  = [None]*(len(phi))
-            Y  = [None]*(len(phi))
-            Z  = [None]*(len(phi))
-        if DEG>=2:
-            V  = [None]*(len(phi))
-            T  = [None]*(len(phi))
-            R  = [None]*(len(phi))
-            S  = [None]*(len(phi))
-            U  = [None]*(len(phi))
-        if DEG>=3:
-            Q  = [None]*(len(phi))
-            O  = [None]*(len(phi))
-            M  = [None]*(len(phi))
-            K  = [None]*(len(phi))
-            L  = [None]*(len(phi))
-            N  = [None]*(len(phi))
-            P  = [None]*(len(phi))
-        if DEG>=4:
-            c16  = [None]*(len(phi))
-            c17  = [None]*(len(phi))
-            c18  = [None]*(len(phi))
-            c19  = [None]*(len(phi))
-            c20  = [None]*(len(phi))
-            c21  = [None]*(len(phi))
-            c22  = [None]*(len(phi))
-            c23  = [None]*(len(phi))
-            c24  = [None]*(len(phi))
-        if DEG>=5:
-            c25  = [None]*(len(phi))
-            c26  = [None]*(len(phi))
-            c27  = [None]*(len(phi))
-            c28  = [None]*(len(phi))
-            c29  = [None]*(len(phi))
-            c30  = [None]*(len(phi))
-            c31  = [None]*(len(phi))
-            c32  = [None]*(len(phi))
-            c33  = [None]*(len(phi))
-            c34  = [None]*(len(phi))
-            c35  = [None]*(len(phi))
-        if DEG>=6:
-            sys.exit("DEG =",DEG," is not implemented yet\n")
-    
-    
+                #####################################################
+                #  Calculating the decoding dependent coefficients  #
+                #####################################################
+            # TOFIX TOBEDONE FIXME
+            if self.DEC == 'basic':
+                for i in range(0, self.DEG + 1):
+                    g0[i] = 1.
+                    g1[i] = 1.
+
+            elif self.DEC == 'maxRe':
+                g1p = [np.cos(i * np.pi / (2 * self.DEG + 2)) for i in range(0, self.DEG + 1)]
+                g0 = [np.sqrt(float(NUM) / (self.DEG + 1))] * 2
+                g1 = [g1p[i] * g0[0] for i in range(len(g1p))]
+
+            elif self.DEC == 'phase':
+                g1p = [(mh.factorial(self.DEG) ** 2 / float(mh.factorial(self.DEG + i) * mh.factorial(self.DEG - i)))
+                       for i in
+                       range(0, self.DEG + 1)]  # okf
+                Eg1p = g1p[0] ** 2 + 2.0 * sum([g1p[i] ** 2 for i in range(1, self.DEG + 1)])
+                g0[0] = np.sqrt(float(NUM) / Eg1p)
+                g1 = [x * g0[0] for x in g1p]
+
+            else:
+                raise ValueError('Decoding scheme unknow: ', self.DEC, ' Possible ones are: basic, maxRe, phase')
+
+            ##########################################
+            ## Calculating the "naive" coefficients ##
+            ## in the N2D convention! careful!      ##
+            ##########################################
+            for i in range(0, len(self.phi)):
+                if self.DEG >= 0:
+                    self.W[i] = 1.0 / NUM
+                    # W has this sqrt(2) factor to take into account that W is not directly the pressure
+
+                if self.DEG >= 1:
+                    # 1st order
+                    self.X[i] = np.sqrt(2.) * np.cos(self.phi[i]) / NUM
+                    self.Y[i] = np.sqrt(2.) * np.sin(self.phi[i]) / NUM
+
+                if self.DEG >= 2:
+                    # 2nd order
+                    self.U[i] = np.sqrt(2.) * np.cos(2. * self.phi[i]) / NUM
+                    self.V[i] = np.sqrt(2.) * np.sin(2. * self.phi[i]) / NUM
+
+                if self.DEG >= 3:
+                    # 3rd order
+                    self.P[i] = np.sqrt(2.) * np.cos(3. * self.phi[i]) / NUM
+                    self.Q[i] = np.sqrt(2.) * np.sin(3. * self.phi[i]) / NUM
+
+                if self.DEG >= 4:
+                    # 4th order
+                    self.c8[i] = np.sqrt(2.) * np.cos(4. * self.phi[i]) / NUM
+                    self.c9[i] = np.sqrt(2.) * np.sin(4. * self.phi[i]) / NUM
+
+                if self.DEG >= 5:
+                    # 5th order
+                    self.c10[i] = np.sqrt(2.) * np.cos(5. * self.phi[i]) / NUM
+                    self.c11[i] = np.sqrt(2.) * np.sin(5. * self.phi[i]) / NUM
+
+                if self.DEG >= 6:
+                    # 6th order
+                    self.c12[i] = np.sqrt(2.) * np.cos(6. * self.phi[i]) / NUM
+                    self.c13[i] = np.sqrt(2.) * np.sin(6. * self.phi[i]) / NUM
+
+                if self.DEG >= 7:
+                    # 7th order
+                    self.c14[i] = np.sqrt(2.) * np.cos(7. * self.phi[i]) / NUM
+                    self.c15[i] = np.sqrt(2.) * np.sin(7. * self.phi[i]) / NUM
+
+                if self.DEG >= 8:
+                    # 8th order
+                    self.c16[i] = np.sqrt(2.) * np.cos(8. * self.phi[i]) / NUM
+                    self.c17[i] = np.sqrt(2.) * np.sin(8. * self.phi[i]) / NUM
+
+                if self.DEG >= 9:
+                    # 9th order
+                    self.c18[i] = np.sqrt(2.) * np.cos(9. * self.phi[i]) / NUM
+                    self.c19[i] = np.sqrt(2.) * np.sin(9. * self.phi[i]) / NUM
+
+                if self.DEG > 9:
+                    print "DEG =", self.DEG, " is not implemented yet\n"
+
+            if self.DEG == 1:
+                coeffs = np.array([self.W, self.Y, self.X])
+            elif self.DEG == 2:
+                coeffs = np.array([self.W, self.Y, self.X, self.V, self.U])
+            elif self.DEG == 3:
+                coeffs = np.array([self.W, self.Y, self.X, self.V, self.U, self.Q, self.P])
+            elif self.DEG == 4:
+                coeffs = np.array([self.W, self.Y, self.X, self.V, self.U, self.Q, self.P, self.c9, self.c8])
+            elif self.DEG == 5:
+                coeffs = np.array([self.W, self.Y, self.X, self.V, self.U, self.Q, self.P, self.c9, self.c8,
+                                   self.c11, self.c10])
+            elif self.DEG == 6:
+                coeffs = np.array([self.W, self.Y, self.X, self.V, self.U, self.Q, self.P, self.c9, self.c8,
+                                   self.c11, self.c10, self.c13, self.c12])
+            elif self.DEG == 7:
+                coeffs = np.array([self.W, self.Y, self.X, self.V, self.U, self.Q, self.P, self.c9, self.c8,
+                                   self.c11, self.c10, self.c13, self.c12, self.c15, self.c14])
+            elif self.DEG == 8:
+                coeffs = np.array([self.W, self.Y, self.X, self.V, self.U, self.Q, self.P, self.c9, self.c8,
+                                   self.c11, self.c10, self.c13, self.c12, self.c15, self.c14, self.c17, self.c16])
+            elif self.DEG == 9:
+                coeffs = np.array([self.W, self.Y, self.X, self.V, self.U, self.Q, self.P, self.c9, self.c8,
+                                   self.c11, self.c10, self.c13, self.c12, self.c15, self.c14, self.c17, self.c16,
+                                   self.c19, self.c18])
+
+            if self.inversion == 1:
+                coeffs = np.linalg.pinv(coeffs, rcond=1e-8).T / NUM
+                coeffs[abs(coeffs) < 1e-8] = 0.  # because inversion gives some very small values somewhere
+
+            ## MULTIPLYING FOR THE SELECTED DECODING SCHEME
+            coeff = np.empty(coeffs.shape, dtype=np.float64)
+            g1[0] = g0[0]
+            for i in range(self.DEG + 1):
+                for jj in range(i * 2 - 1, i * 2 + 1):
+                    if jj >= 0:
+                        coeff[jj] = g1[i] * coeffs[jj]
+
+            self.coeff = coeff
+
+    def _3D(self):
+        # FIXME: this is for nD == '3D' 
+        # things to be initializated
+        NUM = len(self.phi)
+        g1 = [None] * (self.DEG + 1)
+        coeffs = [None] * (len(self.phi))
+        self.W = [None] * (len(self.phi))
+        if self.DEG >= 1:
+            self.X = [None] * (len(self.phi))
+            self.Y = [None] * (len(self.phi))
+            self.Z = [None] * (len(self.phi))
+        if self.DEG >= 2:
+            self.V = [None] * (len(self.phi))
+            self.T = [None] * (len(self.phi))
+            self.R = [None] * (len(self.phi))
+            self.S = [None] * (len(self.phi))
+            self.U = [None] * (len(self.phi))
+        if self.DEG >= 3:
+            self.Q = [None] * (len(self.phi))
+            self.O = [None] * (len(self.phi))
+            self.M = [None] * (len(self.phi))
+            self.K = [None] * (len(self.phi))
+            self.L = [None] * (len(self.phi))
+            self.N = [None] * (len(self.phi))
+            self.P = [None] * (len(self.phi))
+        if self.DEG >= 4:
+            self.c16 = [None] * (len(self.phi))
+            self.c17 = [None] * (len(self.phi))
+            self.c18 = [None] * (len(self.phi))
+            self.c19 = [None] * (len(self.phi))
+            self.c20 = [None] * (len(self.phi))
+            self.c21 = [None] * (len(self.phi))
+            self.c22 = [None] * (len(self.phi))
+            self.c23 = [None] * (len(self.phi))
+            self.c24 = [None] * (len(self.phi))
+        if self.DEG >= 5:
+            self.c25 = [None] * (len(self.phi))
+            self.c26 = [None] * (len(self.phi))
+            self.c27 = [None] * (len(self.phi))
+            self.c28 = [None] * (len(self.phi))
+            self.c29 = [None] * (len(self.phi))
+            self.c30 = [None] * (len(self.phi))
+            self.c31 = [None] * (len(self.phi))
+            self.c32 = [None] * (len(self.phi))
+            self.c33 = [None] * (len(self.phi))
+            self.c34 = [None] * (len(self.phi))
+            self.c35 = [None] * (len(self.phi))
+        if self.DEG >= 6:
+            raise ValueError("DEG =", self.DEG, " is not implemented yet\n")
+
         #####################################################
-        ## Calculating the decoding dependent coefficients ##
+        #  Calculating the decoding dependent coefficients  #
         #####################################################
-        if DEC == 'basic':
-            g1 = basic()
-    
-        elif DEC == 'maxRe':
-            g1 = maxRe(phi)
-    
-        elif DEC == 'phase':
-            g1 = phase(phi)
+        if self.DEC == 'basic':
+            g1 = self._basic()
 
-        elif DEC == 'mixed':
-            g1b = basic()
-            g1m = maxRe(phi)
-            g1p = phase(phi)
-            if DEC > 2:
+        elif self.DEC == 'maxRe':
+            g1 = self._maxRe(self.phi)
+
+        elif self.DEC == 'phase':
+            g1 = self._phase(self.phi)
+
+        elif self.DEC == 'mixed':
+            g1b = self._basic()
+            g1m = self._maxRe(self.phi)
+            g1p = self._phase(self.phi)
+            if self.DEC > 2:
                 # for 3rd order 0th and 1st orders are basic, 2nd order should be maxRe, and 3rd should be inphase
-                g1 = np.concatenate([g1b[0:4],g1m[4:(DEG)**2],g1p[(DEG)**2:(DEG+1)**2]],axis=0)
-            if DEC > 3:
-                # for 3rd order 0th and 1st orders are basic, 2nd and 3rd ... unitl maxorder-1 orders should be maxRe, and last order should be inphase
-                g1 = np.concatenate([g1b[0:4],g1m[4:4**2],g1p[4**2:(DEG+1)**2]],axis=0)
+                g1 = np.concatenate([g1b[0:4], g1m[4:self.DEG ** 2], g1p[self.DEG ** 2:(self.DEG + 1) ** 2]],
+                                    axis=0)
+            if self.DEC > 3:
+                # for 3rd order 0th and 1st orders are basic, 2nd and 3rd ... unitl maxorder-1 orders should be maxRe,
+                # and last order should be inphase
+                g1 = np.concatenate([g1b[0:4], g1m[4:4 ** 2], g1p[4 ** 2:(self.DEG + 1) ** 2]], axis=0)
 
-    
         else:
-            sys.exit('Decoding scheme unknow: ', DEC, ' Possible ones are: basic, maxRe, phase')
-    
-    
-    
+            raise ValueError('Decoding scheme unknow: ', self.DEC, ' Possible ones are: basic, maxRe, phase')
+
         ##########################################
-        ## Calculating the "naive" coefficients ##
+        #  Calculating the "naive" coefficients  #
         ##########################################
-        for i in range(0,len(phi)):
-            if DEG>=0:
-                W[i] = 1.0/NUM 
+        for i in range(0, len(self.phi)):
+            if self.DEG >= 0:
+                self.W[i] = 1.0 / NUM
                 # W has this sqrt(2) factor to take into account that W is not directly the pressure
-    
-            if DEG>=1: 
+
+            if self.DEG >= 1:
                 # 1st order
-                X[i] = np.sqrt(3)* np.cos(phi[i])*np.cos(theta[i])/NUM;    # factor sqrt(3) comes from sqrt(2m+1) - see tab.3.3 p.156 Jerome Daniel
-                Y[i] = np.sqrt(3)* np.sin(phi[i])*np.cos(theta[i])/NUM;   # The decoding matrix is given for SN3D (aka 'semi-normalized') so to go to N3D
-                Z[i] = np.sqrt(3)* np.sin(theta[i])/NUM;                # you have to use the alphas. 
-    
-            if DEG>=2:
+                self.X[i] = np.sqrt(3) * np.cos(self.phi[i]) * np.cos(
+                    self.theta[i]) / NUM  # factor sqrt(3) comes from sqrt(2m+1) - see tab.3.3 p.156 Jerome Daniel
+                self.Y[i] = np.sqrt(3) * np.sin(self.phi[i]) * np.cos(
+                    self.theta[
+                        i]) / NUM  # The decoding matrix is given for SN3D (aka 'semi-normalized') so to go to N3D
+                self.Z[i] = np.sqrt(3) * np.sin(self.theta[i]) / NUM  # you have to use the alphas.
+
+            if self.DEG >= 2:
                 # 2nd order
-                V[i] = np.sqrt(5.)* np.sqrt(3.)/2.*np.sin(2.*phi[i])*np.cos(theta[i])**2/NUM ;
-                T[i] = np.sqrt(5.)* np.sqrt(3.)/2.*np.sin(phi[i])*np.sin(2.*theta[i])/NUM ;
-                R[i] = np.sqrt(5.)* (3.*np.sin(theta[i])**2.-1.)/2./NUM ;   
-                S[i] = np.sqrt(5.)* np.sqrt(3.)/2.*np.cos(phi[i])*np.sin(2.*theta[i])/NUM ;
-                U[i] = np.sqrt(5.)* np.sqrt(3.)/2.*np.cos(2.*phi[i])*np.cos(theta[i])**2/NUM ; 
-    
-            if DEG>=3:
+                self.V[i] = np.sqrt(5.) * np.sqrt(3.) / 2. * np.sin(2. * self.phi[i]) * np.cos(self.theta[i]) ** 2 / NUM
+                self.T[i] = np.sqrt(5.) * np.sqrt(3.) / 2. * np.sin(self.phi[i]) * np.sin(2. * self.theta[i]) / NUM
+                self.R[i] = np.sqrt(5.) * (3. * np.sin(self.theta[i]) ** 2. - 1.) / 2. / NUM
+                self.S[i] = np.sqrt(5.) * np.sqrt(3.) / 2. * np.cos(self.phi[i]) * np.sin(2. * self.theta[i]) / NUM
+                self.U[i] = np.sqrt(5.) * np.sqrt(3.) / 2. * np.cos(2. * self.phi[i]) * np.cos(self.theta[i]) ** 2 / NUM
+
+            if self.DEG >= 3:
                 # 3rd order
-                Q[i] = np.sqrt(7.)* np.sqrt(5./8.)*np.sin(3.*phi[i])*np.cos(theta[i])**3/NUM;
-                O[i] = np.sqrt(7.)* np.sqrt(15.)/2.*np.sin(2.*phi[i])*np.sin(theta[i])*np.cos(theta[i])**2/NUM; 
-                M[i] = np.sqrt(7.)* np.sqrt(3./8.)*np.sin(phi[i])*np.cos(theta[i])*(5.*np.sin(theta[i])**2-1.)/NUM; 
-                K[i] = np.sqrt(7.)* np.sin(theta[i])*(5.*np.sin(theta[i])**2-3.)/2./NUM;
-                L[i] = np.sqrt(7.)* np.sqrt(3./8.)*np.cos(phi[i])*np.cos(theta[i])*(5.*np.sin(theta[i])**2-1.)/NUM; 
-                N[i] = np.sqrt(7.)* np.sqrt(15.)/2.*np.cos(2.*phi[i])*np.sin(theta[i])*np.cos(theta[i])**2/NUM;  
-                P[i] = np.sqrt(7.)* np.sqrt(5./8.)*np.cos(3.*phi[i])*np.cos(theta[i])**3/NUM;
-    
-            if DEG>=4:
+                self.Q[i] = np.sqrt(7.) * np.sqrt(5. / 8.) * np.sin(3. * self.phi[i]) * np.cos(self.theta[i]) ** 3 / NUM
+                self.O[i] = np.sqrt(7.) * np.sqrt(15.) / 2. * np.sin(2. * self.phi[i]) * np.sin(self.theta[i]) * np.cos(
+                    self.theta[i]) ** 2 / NUM
+                self.M[i] = np.sqrt(7.) * np.sqrt(3. / 8.) * np.sin(self.phi[i]) * np.cos(self.theta[i]) * (
+                    5. * np.sin(self.theta[i]) ** 2 - 1.) / NUM
+                self.K[i] = np.sqrt(7.) * np.sin(self.theta[i]) * (5. * np.sin(self.theta[i]) ** 2 - 3.) / 2. / NUM
+                self.L[i] = np.sqrt(7.) * np.sqrt(3. / 8.) * np.cos(self.phi[i]) * np.cos(self.theta[i]) * (
+                    5. * np.sin(self.theta[i]) ** 2 - 1.) / NUM
+                self.N[i] = np.sqrt(7.) * np.sqrt(15.) / 2. * np.cos(2. * self.phi[i]) * np.sin(self.theta[i]) * np.cos(
+                    self.theta[i]) ** 2 / NUM
+                self.P[i] = np.sqrt(7.) * np.sqrt(5. / 8.) * np.cos(3. * self.phi[i]) * np.cos(self.theta[i]) ** 3 / NUM
+
+            if self.DEG >= 4:
                 # 4th order
-                c16[i] = np.sqrt(9.)* np.sqrt(35./2.)*3./8.* np.sin(4.*phi[i])*np.cos(theta[i])**4  /NUM;  # (4,-4)
-                c17[i] = np.sqrt(9.)* np.sqrt(35.)*3./4.* np.sin(3.*phi[i])*np.sin(theta[i])*np.cos(theta[i])**3  /NUM;  # (4,-3)
-                c18[i] = np.sqrt(9.)* np.sqrt(5./2.)/4.*( -3.* np.sin(2.*phi[i])*np.sin(theta[i])*np.cos(theta[i])**3 + 21.*np.sin(2.*phi[i])*np.sin(theta[i])**2*np.cos(theta[i])**2 ) /NUM;  # (4,-2)
-                c19[i] = np.sqrt(9.)* np.sqrt(5.)/4.* ( 21.*np.sin(phi[i])*np.cos(theta[i])*np.sin(theta[i])**3 - 9.*np.sin(phi[i])*np.cos(theta[i])*np.sin(theta[i]) )  /NUM;  # (4,-1)
-                c20[i] = np.sqrt(9.)* 3./64.*( 20.*np.cos(2.*theta[i]) - 35.*np.cos(4.*theta[i]) -9. )  /NUM;  # (4,-0)
-                c21[i] = np.sqrt(9.)* np.sqrt(5.)/4.* ( 21.*np.cos(phi[i])*np.cos(theta[i])*np.sin(theta[i])**3 - 9.*np.cos(phi[i])*np.cos(theta[i])*np.sin(theta[i]) )  /NUM;  # (4, 1)
-                c22[i] = np.sqrt(9.)* np.sqrt(5./2.)/4.*( -3.* np.cos(2.*phi[i])*np.sin(theta[i])*np.cos(theta[i])**3 + 21.*np.cos(2.*phi[i])*np.sin(theta[i])**2*np.cos(theta[i])**2 )  /NUM;  # (4, 2)
-                c23[i] = np.sqrt(9.)* np.sqrt(35.)*3./4.* np.cos(3.*phi[i])*np.sin(theta[i])*np.cos(theta[i])**3  /NUM;  # (4, 3)
-                c24[i] = np.sqrt(9.)* np.sqrt(35./2.)*3./8.* np.cos(4.*phi[i])*np.cos(theta[i])**4  /NUM;  # (4, 4)
-    
-            if DEG>=5:
+                self.c16[i] = np.sqrt(9.) * np.sqrt(35. / 2.) * 3. / 8. * np.sin(4. * self.phi[i]) * np.cos(
+                    self.theta[i]) ** 4 / NUM  # (4,-4)
+                self.c17[i] = np.sqrt(9.) * np.sqrt(35.) * 3. / 4. * np.sin(
+                    3. * self.phi[i]) * np.sin(self.theta[i]) * np.cos(
+                    self.theta[i]) ** 3 / NUM  # (4,-3)
+                self.c18[i] = np.sqrt(9.) * np.sqrt(5. / 2.) / 4. * (
+                    -3. * np.sin(2. * self.phi[i]) * np.sin(self.theta[i]) * np.cos(
+                        self.theta[i]) ** 3 + 21. * np.sin(
+                        2. * self.phi[i]) * np.sin(self.theta[i]) ** 2 * np.cos(self.theta[i]) ** 2) / NUM  # (4,-2)
+                self.c19[i] = np.sqrt(9.) * np.sqrt(5.) / 4. * (
+                    21. * np.sin(self.phi[i]) * np.cos(self.theta[i]) * np.sin(self.theta[i]) ** 3 - 9. * np.sin(
+                        self.phi[i]) * np.cos(
+                        self.theta[i]) * np.sin(self.theta[i])) / NUM  # (4,-1)
+                self.c20[i] = np.sqrt(9.) * 3. / 64. * (
+                    20. * np.cos(2. * self.theta[i]) - 35. * np.cos(4. * self.theta[i]) - 9.) / NUM  # (4,-0)
+                self.c21[i] = np.sqrt(9.) * np.sqrt(5.) / 4. * (
+                    21. * np.cos(self.phi[i]) * np.cos(self.theta[i]) * np.sin(self.theta[i]) ** 3 - 9. * np.cos(
+                        self.phi[i]) * np.cos(
+                        self.theta[i]) * np.sin(self.theta[i])) / NUM  # (4, 1)
+                self.c22[i] = np.sqrt(9.) * np.sqrt(5. / 2.) / 4. * (
+                    -3. * np.cos(2. * self.phi[i]) * np.sin(self.theta[i]) * np.cos(
+                        self.theta[i]) ** 3 + 21. * np.cos(
+                        2. * self.phi[i]) * np.sin(self.theta[i]) ** 2 * np.cos(self.theta[i]) ** 2) / NUM  # (4, 2)
+                self.c23[i] = np.sqrt(9.) * np.sqrt(35.) * 3. / 4. * np.cos(3. * self.phi[i]) * np.sin(
+                    self.theta[i]) * np.cos(
+                    self.theta[i]) ** 3 / NUM  # (4, 3)
+                self.c24[i] = np.sqrt(9.) * np.sqrt(35. / 2.) * 3. / 8. * np.cos(4. * self.phi[i]) * np.cos(
+                    self.theta[i]) ** 4 / NUM  # (4, 4)
+
+            if self.DEG >= 5:
                 # 5th order
-                c25[i] = np.sqrt(11.)* 3./16.*np.sqrt(77.)* np.sin(5.*phi[i])*np.cos(theta[i])**5  /NUM;  # (5,-5)
-                c26[i] = np.sqrt(11.)* 3./8.*np.sqrt(385./2.)* np.sin(4.*phi[i])*np.sin(theta[i])*np.cos(theta[i])**4  /NUM;  # (5,-4) 
-                c27[i] = np.sqrt(11.)* np.sqrt(385.)/16.* ( 9.*np.sin(3.*phi[i])*np.cos(theta[i])**3*np.sin(theta[i])**2 )  /NUM;  # (5, -3)
-                c28[i] = np.sqrt(11.)* np.sqrt(1155./2.)/4.* ( 3.*np.sin(2.*phi[i])*np.cos(theta[i])**2*np.sin(theta[i])**3 - np.sin(2.*phi[i])*np.cos(theta[i])**2*np.sin(theta[i]) )  /NUM;  # (5,-2)
-                c29[i] = np.sqrt(11.)* np.sqrt(165./2.)/8.* ( np.sin(phi[i])*np.cos(theta[i]) - 7.*np.sin(phi[i])*np.cos(theta[i])*np.sin(theta[i])**2 + 21.*np.sin(phi[i])*np.cos(theta[i])*np.sin(theta[i])**4 )  /NUM;  # (5,-1)
-                c30[i] = np.sqrt(11.)* np.sqrt(11.)/8.* ( 15.*np.sin(theta[i]) - 70.*np.sin(theta[i])**3 + 63.*np.sin(theta[i])**5 ) /NUM;  # (5, 0)
-                c31[i] = np.sqrt(11.)* np.sqrt(165./2.)/8.* ( np.cos(phi[i])*np.cos(theta[i]) - 7.*np.cos(phi[i])*np.cos(theta[i])*np.sin(theta[i])**2 + 21.*np.cos(phi[i])*np.cos(theta[i])*np.sin(theta[i])**4 )  /NUM;  # (5, 1)
-                c32[i] = np.sqrt(11.)* np.sqrt(1155./2.)/4.* ( 3.*np.cos(2.*phi[i])*np.cos(theta[i])**2*np.sin(theta[i])**3 - np.cos(2.*phi[i])*np.cos(theta[i])**2*np.sin(theta[i]) )  /NUM;  # (5, 2)
-                c33[i] = np.sqrt(11.)* np.sqrt(385.)/16.* ( 9.*np.cos(3.*phi[i])*np.cos(theta[i])**3*np.sin(theta[i])**2 )  /NUM;  # (5, 3)
-                c34[i] = np.sqrt(11.)* 3./8.*np.sqrt(385./2.)* np.cos(4.*phi[i])*np.sin(theta[i])*np.cos(theta[i])**4   /NUM;  # (5, 4)
-                c35[i] = np.sqrt(11.)* 3./16.*np.sqrt(77.)* np.cos(5.*phi[i])*np.cos(theta[i])**5  /NUM;  # (5, 5)
-    
-            if DEG>6:
-                raise ValueError("DEG =",DEG," is not implemented yet\n")
-    
-     
-    
-    
-    
-    
-        if DEG==1:
-            coeffs = np.array([W, Y, Z, X])
-        elif DEG==2:
-            coeffs = np.array([W, Y, Z, X, V, T, R, S, U])
-        elif DEG==3:
-            coeffs = np.array([W, Y, Z, X, V, T, R, S, U, Q, O, M, K, L, N, P])
-        elif DEG==4:
-            coeffs = np.array([W, Y, Z, X, V, T, R, S, U, Q, O, M, K, L, N, P, c16, c17, c18, c19, c20, c21, c22, c23, c24])
-        elif DEG==5:
-            coeffs = np.array([W, Y, Z, X, V, T, R, S, U, Q, O, M, K, L, N, P, c16, c17, c18, c19, c20, c21, c22, c23, c24, c25, c26, c27, c28, c29, c30, c31, c32, c33, c34, c35])
-     
-        if inversion ==1:
-            coeffs =  np.linalg.pinv(coeffs, rcond=1e-8).T /NUM
-            coeffs[abs(coeffs)<1e-8] = 0. # because inversion gives some very small values somewhere
-    	
-    
-        ### MULTIPLYING FOR THE SELECTED DECODING SCHEME
-        coeff = np.empty(coeffs.shape,dtype=np.float64)
-        for i in range(DEG+1):
-            for jj in range(i**2,(i+1)**2):
-                coeff[jj]=g1[i]*coeffs[jj]
-        
+                self.c25[i] = np.sqrt(11.) * 3. / 16. * np.sqrt(77.) * np.sin(5. * self.phi[i]) * \
+                         np.cos(self.theta[i]) ** 5 / NUM  # (5,-5)
+                self.c26[i] = np.sqrt(11.) * 3. / 8. * np.sqrt(385. / 2.) * np.sin(4. * self.phi[i]) * \
+                         np.sin(self.theta[i]) * np.cos(self.theta[i]) ** 4 / NUM  # (5,-4)
+                self.c27[i] = np.sqrt(11.) * np.sqrt(385.) / 16. * (
+                    9. * np.sin(3. * self.phi[i]) * np.cos(self.theta[i]) ** 3
+                    * np.sin(self.theta[i]) ** 2) / NUM  # (5, -3)
+                self.c28[i] = np.sqrt(11.) * np.sqrt(1155. / 2.) / 4. * (
+                    3. * np.sin(2. * self.phi[i]) * np.cos(self.theta[i]) ** 2 * np.sin(
+                        self.theta[i]) ** 3 - np.sin(2. * self.phi[i]) * np.cos(
+                        self.theta[i]) ** 2 * np.sin(self.theta[i])) / NUM  # (5,-2)
+                self.c29[i] = np.sqrt(11.) * np.sqrt(165. / 2.) / 8. * (
+                    np.sin(self.phi[i]) * np.cos(self.theta[i]) - 7. * np.sin(self.phi[i]) * np.cos(
+                        self.theta[i]) * np.sin(
+                        self.theta[i]) ** 2 + 21. * np.sin(self.phi[i]) * np.cos(self.theta[i]) * np.sin(
+                        self.theta[i]) ** 4) / NUM  # (5,-1)
+                self.c30[i] = np.sqrt(11.) * np.sqrt(11.) / 8. * (
+                    15. * np.sin(self.theta[i]) - 70. * np.sin(self.theta[i]) ** 3 + 63. * np.sin(
+                        self.theta[i]) ** 5) / NUM  # (5, 0)
+                self.c31[i] = np.sqrt(11.) * np.sqrt(165. / 2.) / 8. * (
+                    np.cos(self.phi[i]) * np.cos(self.theta[i]) - 7. * np.cos(self.phi[i]) * np.cos(
+                        self.theta[i]) * np.sin(
+                        self.theta[i]) ** 2 + 21. * np.cos(self.phi[i]) * np.cos(self.theta[i]) * np.sin(
+                        self.theta[i]) ** 4) / NUM  # (5, 1)
+                self.c32[i] = np.sqrt(11.) * np.sqrt(1155. / 2.) / 4. * (
+                    3. * np.cos(2. * self.phi[i]) * np.cos(self.theta[i]) ** 2 * np.sin(
+                        self.theta[i]) ** 3 - np.cos(2. * self.phi[i]) * np.cos(
+                        self.theta[i]) ** 2 * np.sin(self.theta[i])) / NUM  # (5, 2)
+                self.c33[i] = np.sqrt(11.) * np.sqrt(385.) / 16. * (
+                    9. * np.cos(3. * self.phi[i]) * np.cos(self.theta[i]) ** 3 * np.sin(
+                        self.theta[i]) ** 2) / NUM  # (5, 3)
+                self.c34[i] = np.sqrt(11.) * 3. / 8. * np.sqrt(385. / 2.) * np.cos(4. * self.phi[i]) * np.sin(
+                    self.theta[i]) * np.cos(
+                    self.theta[i]) ** 4 / NUM  # (5, 4)
+                self.c35[i] = np.sqrt(11.) * 3. / 16. * np.sqrt(77.) * np.cos(5. * self.phi[i]) * np.cos(
+                    self.theta[i]) ** 5 / NUM  # (5, 5)
 
+            if self.DEG > 6:
+                raise ValueError("DEG = %d is not implemented yet\n" % self.DEG)
 
-############################################################################################
-    ################################
-    ## horizontal Ambisonics only ##
-    ################################
-    if nD == '2D':
+        if self.DEG == 1:
+            coeffs = np.array([self.W, self.Y, self.Z, self.X])
+        elif self.DEG == 2:
+            coeffs = np.array([self.W, self.Y, self.Z, self.X, self.V, self.T, self.R, self.S, self.U])
+        elif self.DEG == 3:
+            coeffs = np.array([self.W, self.Y, self.Z, self.X, self.V, self.T, self.R, self.S, self.U,
+                               self.Q, self.O, self.M, self.K, self.L, self.N, self.P])
+        elif self.DEG == 4:
+            coeffs = np.array([self.W, self.Y, self.Z, self.X, self.V, self.T, self.R, self.S, self.U,
+                               self.Q, self.O, self.M, self.K, self.L, self.N, self.P,
+                               self.c16, self.c17, self.c18, self.c19, self.c20,
+                               self.c21, self.c22, self.c23, self.c24])
+        elif self.DEG == 5:
+            coeffs = np.array([self.W, self.Y, self.Z, self.X, self.V, self.T, self.R, self.S, self.U,
+                               self.Q, self.O, self.M, self.K, self.L, self.N, self.P,
+                               self.c16, self.c17, self.c18, self.c19, self.c20,
+                               self.c21, self.c22, self.c23, self.c24, self.c25,
+                               self.c26, self.c27, self.c28, self.c29, self.c30,
+                               self.c31, self.c32, self.c33, self.c34, self.c35])
 
-        #things to be initializated
-        g0 = [None]*(DEG+1)
-        g1 = [None]*(DEG+1)
-        W  = [None]*(len(phi))
-        if DEG>=1:
-            X  = [None]*(len(phi))
-            Y  = [None]*(len(phi))
-        if DEG>=2:
-            V  = [None]*(len(phi))
-            U  = [None]*(len(phi))
-        if DEG>=3:
-            Q  = [None]*(len(phi))
-            P  = [None]*(len(phi))
-        if DEG>=4:
-            c8  = [None]*(len(phi))
-            c9  = [None]*(len(phi))
-        if DEG>=5:
-            c10  = [None]*(len(phi))
-            c11  = [None]*(len(phi))
-        if DEG>=6:
-            sys.exit("DEG =",DEG," is not implemented yet\n")
- 
- 
-        #####################################################
-        ## Calculating the decoding dependent coefficients ##
-        #####################################################
-# TOFIX TOBEDONE FIXME 
-        if DEC == 'basic':
-            for i in range(0,DEG+1):
-                g0[i] = 1.
-                g1[i] = 1.
-    
-        elif DEC == 'maxRe':
-            g1p = [np.cos(i*np.pi/(2*DEG+2)) for i in range(0,DEG+1)]
-            g0 = [np.sqrt(float(NUM)/(DEG+1))]*2
-            g1 = [g1p[i]*g0[0] for i in range(len(g1p))]
-            
-            #print "g0 ",g0
-            #print "gmprime ",g1p
-            #print "rE ",g1p[1]
-    
-    
-        elif DEC == 'phase':
-            g1p = [( mh.factorial(DEG)**2 / float(mh.factorial(DEG+i)*mh.factorial(DEG-i) ) ) for i in range(0,DEG+1)] # okf
-            Eg1p= g1p[0]**2 + 2.0* sum([g1p[i]**2 for i in range(1,DEG+1) ]) 
-            g0[0]  = np.sqrt(float(NUM)/Eg1p)
-            g1 = [x * g0[0] for x in g1p]
+        if self.inversion == 1:
+            coeffs = np.linalg.pinv(coeffs, rcond=1e-8).T / NUM
+            coeffs[abs(coeffs) < 1e-8] = 0.  # because inversion gives some very small values somewhere
 
-            #print "g0 ",g0
-            #print "gmprime ",g1p
-            #print "rE ", 2.0*DEG/(2.0*DEG+1)
-            #print "E ", NUM/g0[0]**2, " 4th expected ", 2.627
-            #print "E ", NUM/g0[0]**2, " 3rd expected ", 2.310
-            #print g1
-    
-        else:
-            sys.exit('Decoding scheme unknow: ', DEC, ' Possible ones are: basic, maxRe, phase')
-   
+        # MULTIPLYING FOR THE SELECTED DECODING SCHEME
+        coeff = np.empty(coeffs.shape, dtype=np.float64)
+        for i in range(self.DEG + 1):
+            for jj in range(i ** 2, (i + 1) ** 2):
+                coeff[jj] = g1[i] * coeffs[jj]
 
+        self.coeff = coeff
 
-
-        ##########################################
-        ## Calculating the "naive" coefficients ##
-        ## in the N2D convention! careful!      ## 
-        ##########################################
-        for i in range(0,len(phi)):
-            if DEG>=0:
-                W[i] = 1.0/NUM 
-                # W has this sqrt(2) factor to take into account that W is not directly the pressure
-    
-            if DEG>=1: 
-                # 1st order
-                X[i] = np.sqrt(2.)* np.cos(phi[i])/NUM;
-                Y[i] = np.sqrt(2.)* np.sin(phi[i])/NUM;
-    
-            if DEG>=2:
-                # 2nd order
-                U[i] = np.sqrt(2.)* np.cos(2.*phi[i])/NUM;
-                V[i] = np.sqrt(2.)* np.sin(2.*phi[i])/NUM; 
-    
-            if DEG>=3:
-                # 3rd order
-                P[i] = np.sqrt(2.)* np.cos(3.*phi[i])/NUM;
-                Q[i] = np.sqrt(2.)* np.sin(3.*phi[i])/NUM;
-    
-            if DEG>=4:
-                # 4th order
-                c8[i] = np.sqrt(2.)* np.cos(4.*phi[i])/NUM;
-                c9[i] = np.sqrt(2.)* np.sin(4.*phi[i])/NUM;
-    
-
-            if DEG>=5:
-                # 5th order
-                c10[i] = np.sqrt(2.)* np.cos(5.*phi[i])/NUM;
-                c11[i] = np.sqrt(2.)* np.sin(5.*phi[i])/NUM;
- 
-            if DEG>=6:
-                # 6th order
-                c12[i] = np.sqrt(2.)* np.cos(6.*phi[i])/NUM;
-                c13[i] = np.sqrt(2.)* np.sin(6.*phi[i])/NUM;
- 
-            if DEG>=7:
-                # 7th order
-                c14[i] = np.sqrt(2.)* np.cos(7.*phi[i])/NUM;
-                c15[i] = np.sqrt(2.)* np.sin(7.*phi[i])/NUM;
- 
-            if DEG>=8:
-                # 8th order
-                c16[i] = np.sqrt(2.)* np.cos(8.*phi[i])/NUM;
-                c17[i] = np.sqrt(2.)* np.sin(8.*phi[i])/NUM;
- 
-            if DEG>=9:
-                # 9th order
-                c18[i] = np.sqrt(2.)* np.cos(9.*phi[i])/NUM;
-                c19[i] = np.sqrt(2.)* np.sin(9.*phi[i])/NUM;
-
-
-            if DEG>9:
-                print "DEG =",DEG," is not implemented yet\n"
-    
-
-
-        if DEG==1:
-            coeffs = np.array([W, Y, X])
-        elif DEG==2:
-            coeffs = np.array([W, Y, X, V, U])
-        elif DEG==3:
-            coeffs = np.array([W, Y, X, V, U, Q, P])
-        elif DEG==4:
-            coeffs = np.array([W, Y, X, V, U, Q, P, c9, c8])
-        elif DEG==5:
-            coeffs = np.array([W, Y, X, V, U, Q, P, c9, c8, c11, c10])
-        elif DEG==6:
-            coeffs = np.array([W, Y, X, V, U, Q, P, c9, c8, c11, c10, c13, c12])
-        elif DEG==7:
-            coeffs = np.array([W, Y, X, V, U, Q, P, c9, c8, c11, c10, c13, c12, c15, c14])
-        elif DEG==8:
-            coeffs = np.array([W, Y, X, V, U, Q, P, c9, c8, c11, c10, c13, c12, c15, c14, c17, c16])
-        elif DEG==9:
-            coeffs = np.array([W, Y, X, V, U, Q, P, c9, c8, c11, c10, c13, c12, c15, c14, c17, c16, c19, c18])
-     
-        if inversion ==1:
-            coeffs =  np.linalg.pinv(coeffs, rcond=1e-8).T /NUM
-            coeffs[abs(coeffs)<1e-8] = 0. # because inversion gives some very small values somewhere
-    	
-    
-        ### MULTIPLYING FOR THE SELECTED DECODING SCHEME
-        coeff = np.empty(coeffs.shape,dtype=np.float64)
+    def _basic(self):
+        g0 = [None] * (self.DEG + 1)
+        g1 = [None] * (self.DEG + 1)
+        for i in range(0, self.DEG + 1):
+            g0[i] = 1.
+            g1[i] = 1.
         g1[0] = g0[0]
-        for i in range(DEG+1):
-            for jj in range(i*2-1,i*2+1):
-                if jj >= 0:
-                    coeff[jj]=g1[i]*coeffs[jj]
-     
- 
-    # at the end, please return something ;)
-    return coeff
-
-
-
-
-
-##########################
-## supporting functions ##
-##########################
-
-def Sij(coeffSpk, coeffDir,NSphPt):
-    sij = np.dot(coeffSpk.T, coeffDir*NSphPt) # this will have the dimensions of NSPK*NPOINTS
-    if sij.shape != (NSPK,NSphPt): sys.exit("Wrong dimensions in Sij\n")
-    return sij
-
-
-
-def physOmni(Sij):
-    # LOW FREQUENCIES
-    # pressure
-    pressure = sum(Sij)
-    # velocity
-    V = velocity(Sij)
-
-
-    # HIGH FREQUENCIES
-    # energy density
-    energyD = sum(Sij*Sij)
-    # intensity
-    J = velocity(Sij*Sij)
-
-    return pressure, V, energyD, J
-
-
-
-def velocity(Sij):
-    phi = np.asarray(PHI)
-    theta = np.asarray(THETA)
-    Sx = np.cos(phi) * np.cos(theta)
-    Sy = np.sin(phi) * np.cos(theta)
-    Sz = np.sin(theta)
-    # rewrite these five lines using a call to ambisoniC (first order)
-    # and fixing the coefficient of X,Y,Z
-
-    if Sx.shape[0] == Sij.shape[0] and Sy.shape[0] == Sij.shape[0] and Sz.shape[0] == Sij.shape[0]:
-
-        # since Sij and Sx are numpy arrays, the * is the element-wise multiplication
-        # http://wiki.scipy.org/NumPy_for_Matlab_Users#head-e9a492daa18afcd86e84e07cd2824a9b1b651935
-        Vx = sum((Sij.T * Sx).T) / sum(Sij)
-        Vy = sum((Sij.T * Sy).T) / sum(Sij)
-        Vz = sum((Sij.T * Sz).T) / sum(Sij)
-
-    else: 
-        sys.exit("Something went wrong calculating velocity\n")
-
-    return Vx, Vy, Vz
-
-
-
-def Radial(A,B):
-    Sum = 0
-    if len(A)!=len(B): sys.exit("I'm dying in Radial function. Arrays with different shapes.")
-    for i in range(len(A)):
-        Sum += A[i]*B[i]
-
-    return Sum
-
-
-def Tang(A,B):    # aka Cross
-    Sum = 0
-    if len(A)!=len(B): sys.exit("I'm dying in Tang function. Arrays with different shapes.")
-    for i in range(len(A)):
-        Sum += (A[i]*B[i-1]-A[i-1]*B[i])**2.0
-
-    return np.sqrt(Sum)
-
-
-def physDir(Sij,phi,theta):
-    phi = np.asarray(phi)
-    theta = np.asarray(theta)
-    Zx = np.cos(phi) * np.cos(theta)
-    Zy = np.sin(phi) * np.cos(theta)
-    Zz = np.sin(theta)
-    # rewrite these five lines using a call to ambisoniC (first order)
-    # and fixing the coefficient of X,Y,Z
-    
-    Z = Zx, Zy, Zz
-
-    press, V, energyD, J = physOmni(Sij)
-    
-    Vradial = Radial(V,Z)
-    Jradial = Radial(J,Z)
-
-    Vtangential = Tang(V,Z)
-    Jtangential = Tang(J,Z)
-
-    return press, V, energyD, J, Vradial, Jradial, Vtangential, Jtangential
-
-
-
-def oppGain(Sij):
-    # FOR IN-PHASE DECODING
-    oppGain = np.zeros((NSPK,NPOINTS),dtype=np.float64)
-    oppGain[Sij<0] = Sij[Sij<0]
-    if oppGain.shape != (NSPK,NPOINTS): sys.exit("Wrong dimensions in oppGain\n")
-    oppGain = sum(oppGain*oppGain)
-
-    return oppGain
-
-
-
-
-def sph2cart(phi,theta):
-    """Acoustics convention!"""
-    x = np.cos(phi) * np.cos(theta)
-    y = np.sin(phi) * np.cos(theta)
-    z = np.sin(theta)
-    return x, y, z
-
-def Physph2cart(phi,theta):
-    """Physics convention!"""
-    x = np.cos(phi) * np.sin(theta)
-    y = np.sin(phi) * np.sin(theta)
-    z = np.cos(theta)
-    return x, y, z
-
-def PlotOverSphere(phi,theta,rho):
-    """Acoustics convention!"""
-    x = np.cos(phi) * np.cos(theta)*rho
-    y = np.sin(phi) * np.cos(theta)*rho
-    z = np.sin(theta)*rho
-    return x, y, z
-
-
-def eval_grad(f, theta):
-    theta = algopy.UTPM.init_jacobian(theta)
-    return algopy.UTPM.extract_jacobian(f(theta))
-
-def eval_hess(f, theta):
-    theta = algopy.UTPM.init_hessian(theta)
-    return algopy.UTPM.extract_hessian(len(theta), f(theta))
-
-
-def vtomat(vector):
-    if nD == "2D":
-        #tmp = np.reshape(vector,((DEG*2+1),NSPKmatch))
-        tmp = vector.reshape((DEG*2+1),NSPKmatch)
-    if nD == "3D":
-        #tmp = np.reshape(vector,((DEG+1)**2,NSPKmatch))
-        tmp = vector.reshape(((DEG+1)**2,NSPKmatch))
-    return tmp
-
-
-def mattov(mat):
-    if nD == "2D":
-        tmp = mat.reshape((1,(DEG*2+1)*NSPKmatch))[0]
-    if nD == "3D":
-        tmp = mat.reshape((1,(DEG+1)**2*NSPKmatch))[0]
-    return tmp
-
-
-def zeroing_bounds(nodes,upbound,lowbound,run):
-    if nD == "3D":
-        for i in range((DEG+1)**2*NSPKmatch):
-            if np.asarray(abs(nodes)<3.*10e-4).reshape(1,((DEG+1)**2*NSPKmatch))[0,i]: upbound[i] = 0.; lowbound[i] = 0.; # putting to zero the speakers that are in a node of a SH
-
-    if nD == "2D":
-        for i in range((DEG*2+1)*NSPKmatch):
-            if np.asarray(abs(nodes)<3.*10e-4).reshape(1,((DEG*2+1)*NSPKmatch))[0,i]: upbound[i] = 0.; lowbound[i] = 0.; # putting to zero the speakers that are in a node of a SH
-
-
-    return nodes, upbound, lowbound
-
-
-################################
-# The function to be minimized #
-################################
-def function(VarCoeffSpk,*args):
-    if len(args)>1 :
-        grad = args[0]
-        print "You have to implement the gradient or use another algorithm"
-
-    shapeCoeff = np.shape(VarCoeffSpk)
-    # this because the minimization library destroys the shape of VarCoeffSpk
-    # in 3D
-    if nD == "3D":
-        if (shapeCoeff == ((DEG+1)**2*NSPKmatch,)):
-            VarCoeffSpk = vtomat(VarCoeffSpk) 
-        elif (shapeCoeff == ((DEG+1)**2*NSPK,)):
-            sys.exit("Here the dimension is "+str(shapeCoeff)+" while it should be "+str(((DEG+1)**2*NSPKmatch,)) )
-        elif (shapeCoeff != ((DEG+1)**2,NSPKmatch)) and  (shapeCoeff != ((DEG+1)**2,NSPK)):
-            sys.exit("Strange dimensions of VarCoeffSpk in -function-."+str(shapeCoeff))
-
-
-        if MATCHSPK: VarCoeffSpk = upscalematrix(VarCoeffSpk,MATCHED)
-        if (np.shape(VarCoeffSpk) != ((DEG+1)**2,NSPK)):
-            sys.exit("Here the matrix should be ((DEG+1)**2,NSPK)")
-
-
-    # in 2D
-    if nD == "2D":
-        if (shapeCoeff == ((DEG*2+1)*NSPKmatch,)):
-            VarCoeffSpk = vtomat(VarCoeffSpk) 
-        elif (shapeCoeff == ((DEG*2+1)*NSPK,)):
-            sys.exit("Here the dimension is "+str(shapeCoeff)+" while it should be "+str(( (DEG*2+1)*NSPKmatch,)) )
-        elif (shapeCoeff != ((DEG*2+1),NSPKmatch)) and  (shapeCoeff != ((DEG*2+1),NSPK)):
-            sys.exit("Strange dimensions of VarCoeffSpk in -function-."+str(shapeCoeff))
-
-
-        if MATCHSPK: VarCoeffSpk = upscalematrix(VarCoeffSpk,MATCHED)
-        if (np.shape(VarCoeffSpk) != ((DEG*2+1),NSPK)):
-            sys.exit("Here the matrix should be ((DEG*2+1),NSPK)")
-
-
-
-    """The function to be minimized"""
-#    if (CP == None): CP = 400. # arbitrary coefficients
-#    if (CE == None): CE = 400.
-#    if (CR == None): CR = 100.
-#    if (CT == None): CT = 100.
-#    if (CPH == None):CPH= 1000.
-#    if (CV == None): CV = 25.
-    Wj = np.ones(coeffDir.shape[1]) # biasing factor dependent on direction j
-    Mj = np.ones(coeffDir.shape[1]) # biasing factor dependent on direction j
-
-
-    sij = Sij(VarCoeffSpk,coeffDir,NPOINTS)
-    pressure, V, energyD, J, Vradial, Jradial, Vtang, Jtang = physDir(sij,phiTest,thetaTest)
-
-    # weighting functions
-    if WFRONT: Wj = Wj*WfrontVec # maybe it's better if you calculate Wfront Wplane and Wbinary outside the function, so that you calculate them only once...
-    if WPLANE: Wj = Wj*WplaneVec
-    if WBIN:   Wj = Wj*WbinVec
-    if WAUTOREM: Mj = Mj*WremVec
-    if WFRONT or WPLANE or WBIN: Wj = Wj*float(len(Wj))/sum(Wj)
-
-
-    if DEC=='basic':
-        Tpressure = ((1.-pressure)**2*Wj*Mj)/NPOINTS
-        TVlon = ((1.-Vradial)**2*Wj*Mj)/NPOINTS
-        TVtang = ((Vtang)**2*Wj*Mj)/NPOINTS
-        Tvar = 0
-        Tpressure2 = 0
-        TVlon2 = 0
-        TVtang2 = 0
-        
-        TenergyD = ((1.-energyD)**2*Wj*Mj)/NPOINTS
-        #TenergyD = ((1.-energyD)**2*Wj*Mj*2)/NPOINTS
-        TJrad = ((1.-Jradial)**2*Wj*Mj)/NPOINTS
-        TJtang = ((Jtang)**2*Wj*Mj)/NPOINTS
- 
-        if PREFHOM:
-            Tvar = np.var(VarCoeffSpk[0])/(np.mean(VarCoeffSpk[0]))**2
-            
-        if (WAUTOREM or WBIN):
-            Tpressure2 = (~WremVec)*((0.5-pressure)**2*Wj)/NPOINTS # Pressure -3 dB 
-            TVlon2 = (~WremVec)*((1.-Vradial)**2*Wj)/NPOINTS
-            TVtang2 = (~WremVec)*((Vtang)**2*Wj)/NPOINTS
-
-        
-        target = np.sum( CP*(Tpressure + Tpressure2 ) +
-                    + CR*(TVlon + 0.1*TVlon2) 
-                    + CT*(TVtang + 0.1*TVtang2)
-                    + CPH*TJrad + CPH*TJtang + CPH*TenergyD ) + CV*Tvar
-        #TODO: convert the hardcoded numbers into parameters
-        #                                    introduced this term | here
-        # one sum instead of three (in Tpressure, TVlon,...)
-        # anyway norm is (much) faster...
-
-    elif DEC=='maxRe' or DEC=='mixed':
-        TenergyD = ((1.-energyD)**2*Wj*Mj)/NPOINTS
-        TJrad = ((1.-Jradial)**2*Wj*Mj)/NPOINTS
-        TJtang = ((Jtang)**2*Wj*Mj)/NPOINTS
-        Tvar = 0
-        TJrad2 = 0
-        TenergyD2 = 0
-        TJtang2 = 0
-        if PREFHOM:
-            Tvar = np.var(VarCoeffSpk[0])/(np.mean(VarCoeffSpk[0]))**2
-        if (WAUTOREM or WBIN):
-            TenergyD2 = (~WremVec)*((0.5-energyD)**2*Wj)/NPOINTS # Energy -3 dB 
-            TJrad2 = (~WremVec)*((1.-Jradial)**2*Wj)/NPOINTS
-            TJtang2 = (~WremVec)*((Jtang)**2*Wj)/NPOINTS            
-            # ~array : negation of an array of bools
-
-            
-        
-        target = np.sum(CE*(TenergyD + TenergyD2) +  CR*(TJrad + 0.1*TJrad2) + CT*(TJtang + 0.1*TJtang2) )  + CV*Tvar 
-        #TODO: convert the hardcoded numbers into parameters 
-        
-        #TenergyD = np.linalg.norm((1.-energyD)*Wj)**2/NPOINTS
-        #TJrad = np.linalg.norm((1.-Jradial)*Wj*Mj)**2/NPOINTS
-        #TJtang = np.linalg.norm((Jtang)*Wj*Mj)**2/NPOINTS
-        #Tvar = 0
-        #if PREFHOM:
-        #    Tvar = np.var(VarCoeffSpk[0])/(np.mean(VarCoeffSpk[0]))**2
-        #
-        #target = CE*TenergyD + CR*TJrad + CT*TJtang + CV*Tvar
-
-
-    elif DEC=='phase':
-        TenergyD = ((1.-energyD)**2* Wj)/NPOINTS
-        TJrad = ((1.-Jradial)**2*Wj*Mj)/NPOINTS
-        TJtang = ((Jtang)**2*Wj*Mj)/NPOINTS
-        Tvar = 0
-        if PREFHOM:
-            Tvar = np.var(VarCoeffSpk[0])/(np.mean(VarCoeffSpk[0]))**2
-        ToppGain = np.linalg.norm(oppGain(sij))**2/NPOINTS
-
-        target = np.sum(CE*TenergyD + CR*TJrad + CT*TJtang) + CPH*ToppGain * CV*Tvar  # missing some extra factors (see dani's paper page 5)
-
-    return target
-
-
-## with nlopt you can also write linear and non linear constraints... have a look at the reference
-## http://ab-initio.mit.edu/wiki/index.php/NLopt_Python_Reference
-def eqconstr(result,x,grad):
-	if grad.size > 0:
-		print "gradient to be implemented"
-		
-		
-	nodes = ambisoniC(PHI,THETA,'basic',DEG,0)	# calculates the coefficients in the basic or naive scheme. 
-							# These values are used to figure out which speakers lay in the nodes of some spherical harmonic
-	for i in range((DEG+1)**2*NSPK):
-		if np.asarray(abs(nodes)<10e-8).reshape(1,((DEG+1)**2*NSPK))[0,i]: result[i] = x[i] # putting to zero the speakers that are in a node of a SH
-	return
-
-
-def inconstr(result,x,grad):
-	if grad.size > 0:
-		print "gradient to be implemented"
-		
-		
-	nodes = ambisoniC(PHI,THETA,'basic',DEG,0)	# calculates the coefficients in the basic or naive scheme. 
-							# These values are used to figure out which speakers lay in the nodes of some spherical harmonic
-	for i in range((DEG+1)**2*NSPK):
-		if np.asarray(nodes>0.).reshape(1,((DEG+1)**2*NSPK))[0,i]: result[i] > x[i]		# keeping the sign
-		if np.asarray(nodes<0.).reshape(1,((DEG+1)**2*NSPK))[0,i]: result[i] < x[i]		# keeping the sign
-	return
-
-
-def downscalematrix(CoeffMat,matched):
-    '''
-    * here we need two things:
-    * - the matrix of coefficients that we want to downscale 
-    * - the vector of paired speakers
-    *
-    * The downscaled (shrinked) matrix will be our output here
-    '''
-    for idx, spki in enumerate(matched):
-        if (spki >= 0): 
-            # the new matrix has to have the idx rows only
-            if (idx==0): ResShrinked = CoeffMat.T[idx]
-            else: ResShrinked = np.vstack((ResShrinked, CoeffMat.T[idx]))
-    if MATCHSPK: return ResShrinked.T
-    else: return CoeffMat
-
-
-def upscalematrix(ResShrinked,matched):
-    '''
-    * here we need three things:
-    * - the matrix of coefficients that we want to downscale 
-    * - the vector of paired speakers
-    * - the vector of SH signs that change with left/right symmetry
-    *
-    * The upscaled matrix will be our output here
-    '''
-    
-    if (np.shape(ResShrinked) == ((DEG+1)**2,NSPK)) or (np.shape(ResShrinked) == ((DEG*2+1),NSPK)):
-        return ResShrinked
-        
-    else:
-        counter = 0 # you don't strictly need a counter, you can use len(shrinked) ... I guess
-
+        return g1
+
+    def _maxRe(self, phi):
+        NUM = len(phi)  # number of speakers
+        g0 = [None] * (self.DEG + 1)
+        g1 = [None] * (self.DEG + 1)
+
+        g1p = maxReCoeffs(self.DEG)
+        Egm = sum([(2. * i + 1.) * g1p[i] ** 2 for i in range(self.DEG + 1)])
+        g0 = [np.sqrt(NUM / Egm)] * 4
+        g1 = [g1p[i] * g0[0] for i in range(len(g1p))]
+
+        g1[0] = g0[0]
+        return g1
+
+    def _phase(self, phi):
+        NUM = len(phi)  # number of speakers
+        g0 = [None] * (self.DEG + 1)
+        g1 = [None] * (self.DEG + 1)
+
+        g0d = np.sqrt(3. * NUM / 4.)  # from Dani 1st order Ambisonics
+        g1d = g0d * 1. / 3.  # from Dani 1st order Ambisonics
+        g1p = [None] * (self.DEG + 1)
+
+        for i in range(0, self.DEG + 1):
+            g0[i] = np.sqrt(NUM * (2 * self.DEG + 1)) / (self.DEG + 1)
+            g1[i] = g0[i] * (mh.factorial(self.DEG) * mh.factorial(self.DEG + 1)) / float(
+                mh.factorial(self.DEG + i + 1) * mh.factorial(self.DEG - i))  # note that g1(0) is equal to g0
+            g1p[i] = (mh.factorial(self.DEG) * mh.factorial(self.DEG + 1)) / float(
+                mh.factorial(self.DEG + i + 1) * mh.factorial(self.DEG - i))  # just for debugging purposes
+
+        g1[0] = g0[0]
+        return g1
+
+
+class Support:
+    def __init__(self, configClass, ambisoniClass):
+        self.cfg = configClass
+        self.amb = ambisoniClass
+        self.nD  = self.cfg.nD
+        self.DEC = self.cfg.DEC
+        self.DEG = self.cfg.DEG
+        self.PHI = self.cfg.PHI
+        self.THETA  = self.cfg.THETA
+        self.NSPK   = self.cfg.NSPK
+        self.NPOINTS    = self.cfg.NPOINTS
+        self.MATCHSPK   = self.cfg.MATCHSPK
+        self.NSPKmatch  = self.cfg.NSPKmatch
+        self.coeffDir   = None
+
+    ##########################
+    ## supporting functions ##
+    ##########################
+    def Sij(self, coeffSpk, coeffDir, NSphPt):
+        NSPK = self.cfg.NSPK
+        try:
+            sij = np.dot(coeffSpk.T, coeffDir * NSphPt)  # this will have the dimensions of NSPK*NPOINTS
+        except ValueError:
+            raise ValueError("Wrong dimensions when doing dot product in sij")
+
+        if sij.shape != (NSPK, NSphPt):
+            (a, b) = sij.shape
+            raise ValueError("Wrong dimensions in Sij. Should be (%i,%i) but it's (%i,%i) \n" % (NSPK, NSphPt, a, b))
+        return sij
+
+    def physOmni(self, Sij):
+        # LOW FREQUENCIES
+        # pressure
+        pressure = sum(Sij)
+        # velocity
+        V = self.velocity(Sij)
+
+        # HIGH FREQUENCIES
+        # energy density
+        energyD = sum(Sij * Sij)
+        # intensity
+        J = self.velocity(Sij * Sij)
+
+        return pressure, V, energyD, J
+
+    def velocity(self, Sij):
+        PHI     = self.cfg.PHI
+        THETA   = self.cfg.THETA
+        phi = np.asarray(PHI)
+        theta = np.asarray(THETA)
+        Sx = np.cos(phi) * np.cos(theta)
+        Sy = np.sin(phi) * np.cos(theta)
+        Sz = np.sin(theta)
+        # rewrite these five lines using a call to ambisoniC (first order)
+        # and fixing the coefficient of X,Y,Z
+
+        if Sx.shape[0] == Sij.shape[0] and Sy.shape[0] == Sij.shape[0] and Sz.shape[0] == Sij.shape[0]:
+
+            # since Sij and Sx are numpy arrays, the * is the element-wise multiplication
+            # http://wiki.scipy.org/NumPy_for_Matlab_Users#head-e9a492daa18afcd86e84e07cd2824a9b1b651935
+            Vx = sum((Sij.T * Sx).T) / sum(Sij)
+            Vy = sum((Sij.T * Sy).T) / sum(Sij)
+            Vz = sum((Sij.T * Sz).T) / sum(Sij)
+
+        else:
+            raise ValueError("Something went wrong calculating velocity\n")
+
+        return Vx, Vy, Vz
+
+    @staticmethod
+    def Radial(A, B):
+        Sum = 0
+        if len(A) != len(B): raise ValueError("I'm dying in Radial function. Arrays with different shapes.")
+        for i in range(len(A)):
+            Sum += A[i] * B[i]
+
+        return Sum
+
+    @staticmethod
+    def Tang(A, B):  # aka Cross
+        Sum = 0
+        if len(A) != len(B): raise ValueError("I'm dying in Tang function. Arrays with different shapes.")
+        for i in range(len(A)):
+            Sum += (A[i] * B[i - 1] - A[i - 1] * B[i]) ** 2.0
+
+        return np.sqrt(Sum)
+
+    def physDir(self, Sij, phi, theta):
+        phi = np.asarray(phi)
+        theta = np.asarray(theta)
+        Zx = np.cos(phi) * np.cos(theta)
+        Zy = np.sin(phi) * np.cos(theta)
+        Zz = np.sin(theta)
+        # FIXME: rewrite these five lines using a call to ambisoniC (first order)
+        # and fixing the coefficient of X,Y,Z
+
+        Z = Zx, Zy, Zz
+
+        press, V, energyD, J = self.physOmni(Sij)
+
+        Vradial = self.Radial(V, Z)
+        Jradial = self.Radial(J, Z)
+
+        Vtangential = self.Tang(V, Z)
+        Jtangential = self.Tang(J, Z)
+
+        return press, V, energyD, J, Vradial, Jradial, Vtangential, Jtangential
+
+    def oppGain(self, Sij):
+        # FOR IN-PHASE DECODING
+        oppGain = np.zeros((self.NSPK, self.NPOINTS), dtype=np.float64)
+        oppGain[Sij < 0] = Sij[Sij < 0]
+        if oppGain.shape != (self.NSPK, self.NPOINTS): raise ValueError("Wrong dimensions in oppGain\n")
+        oppGain = sum(oppGain * oppGain)
+
+        return oppGain
+
+    @staticmethod
+    def sph2cart(phi, theta):
+        """Acoustics convention!"""
+        x = np.cos(phi) * np.cos(theta)
+        y = np.sin(phi) * np.cos(theta)
+        z = np.sin(theta)
+        return x, y, z
+
+    @staticmethod
+    def Physph2cart(phi, theta):
+        """Physics convention!"""
+        x = np.cos(phi) * np.sin(theta)
+        y = np.sin(phi) * np.sin(theta)
+        z = np.cos(theta)
+        return x, y, z
+
+    @staticmethod
+    def PlotOverSphere(phi, theta, rho):
+        """Acoustics convention!"""
+        x = np.cos(phi) * np.cos(theta) * rho
+        y = np.sin(phi) * np.cos(theta) * rho
+        z = np.sin(theta) * rho
+        return x, y, z
+
+    @staticmethod
+    def eval_grad(f, theta):
+        theta = algopy.UTPM.init_jacobian(theta)
+        return algopy.UTPM.extract_jacobian(f(theta))
+
+    @staticmethod
+    def eval_hess(f, theta):
+        theta = algopy.UTPM.init_hessian(theta)
+        return algopy.UTPM.extract_hessian(len(theta), f(theta))
+
+    def vtomat(self, vector):
+        if self.nD == "2D":
+            tmp = vector.reshape((self.DEG * 2 + 1), self.NSPKmatch)
+        elif self.nD == "3D":
+            tmp = vector.reshape(((self.DEG + 1) ** 2, self.NSPKmatch))
+        else:
+            raise ValueError("Failing during conversion from vector to matrix.")
+        return tmp
+
+    def mattov(self, mat):
+        if self.nD == "2D":
+            tmp = mat.reshape((1, (self.DEG * 2 + 1) * self.NSPKmatch))[0]
+        elif self.nD == "3D":
+            tmp = mat.reshape((1, (self.DEG + 1) ** 2 * self.NSPKmatch))[0]
+        else:
+            raise ValueError("Failing during conversion from matrix to vector.")
+        return tmp
+
+    def zeroing_bounds(self, nodes, upbound, lowbound, run):
+        if self.nD == "3D":
+            matrix_size = (self.DEG + 1) ** 2 * self.NSPKmatch
+            nodes_bool_vector = np.asarray(abs(nodes) < 3. * 10e-4).reshape(1, matrix_size)
+            for i in range(matrix_size):
+                if nodes_bool_vector[0, i]:
+                    upbound[i] = 0.
+                    lowbound[i] = 0.  # putting to zero the speakers that are in a node of a SH
+
+        if self.nD == "2D":
+            matrix_size = (self.DEG * 2 + 1) * self.NSPKmatch
+            nodes_bool_vector = np.asarray(abs(nodes) < 3. * 10e-4).reshape(1, matrix_size)
+            for i in range(matrix_size):
+                if nodes_bool_vector[0, i]:
+                    upbound[i] = 0.
+                    lowbound[i] = 0.  # putting to zero the speakers that are in a node of a SH
+
+        return nodes, upbound, lowbound
+
+
+    ################################
+    # The function to be minimized #
+    ################################
+    def function(self, VarCoeffSpk, *args):
+        if len(args) > 1:
+            grad = args[0]
+            logging.error("You have to implement the gradient or use another algorithm")
+
+        shapeCoeff = np.shape(VarCoeffSpk)
+        # this because the minimization library destroys the shape of VarCoeffSpk
+        # in 3D
+        if self.cfg.nD == "3D":
+            if (shapeCoeff == ((self.cfg.DEG + 1) ** 2 * self.cfg.NSPKmatch,)):
+                VarCoeffSpk = self.vtomat(VarCoeffSpk)
+            elif (shapeCoeff == ((self.cfg.DEG + 1) ** 2 * self.cfg.NSPK,)):
+                raise ValueError("Here the dimension is " + str(shapeCoeff) + " while it should be " + str(
+                    ((self.cfg.DEG + 1) ** 2 * self.cfg.NSPKmatch,)))
+            elif (shapeCoeff != ((self.cfg.DEG + 1) ** 2, self.cfg.NSPKmatch)) and (shapeCoeff != ((self.cfg.DEG + 1) ** 2, self.cfg.NSPK)):
+                raise ValueError("Strange dimensions of VarCoeffSpk in -function-." + str(shapeCoeff))
+
+            if self.cfg.MATCHSPK: VarCoeffSpk = self.upscalematrix(VarCoeffSpk, self.cfg.MATCHED)
+            if (np.shape(VarCoeffSpk) != ((self.cfg.DEG + 1) ** 2, self.cfg.NSPK)):
+                raise ValueError("Here the matrix should be ((DEG+1)**2,NSPK)")
+
+        # in 2D
+        if self.cfg.nD == "2D":
+            if (shapeCoeff == ((self.cfg.DEG * 2 + 1) * self.cfg.NSPKmatch,)):
+                VarCoeffSpk = self.vtomat(VarCoeffSpk)
+            elif (shapeCoeff == ((self.cfg.DEG * 2 + 1) * self.cfg.NSPK,)):
+                raise ValueError(
+                    "Here the dimension is " + str(shapeCoeff) + " while it should be " + str(
+                        ((self.cfg.DEG * 2 + 1) * self.cfg.NSPKmatch,)))
+            elif (shapeCoeff != ((self.cfg.DEG * 2 + 1), self.cfg.NSPKmatch)) and (shapeCoeff != ((self.cfg.DEG * 2 + 1), self.cfg.NSPK)):
+                raise ValueError("Strange dimensions of VarCoeffSpk in -function-." + str(shapeCoeff))
+
+            if self.cfg.MATCHSPK: VarCoeffSpk = self.upscalematrix(VarCoeffSpk, self.cfg.MATCHED)
+            if (np.shape(VarCoeffSpk) != ((self.cfg.DEG * 2 + 1), self.cfg.NSPK)):
+                raise ValueError("Here the matrix should be ((DEG*2+1),NSPK): (%d,%d)" % ((self.cfg.DEG * 2 + 1), self.cfg.NSPK))
+
+
+        """The function to be minimized"""
+        Wj = np.ones(self.coeffDir.shape[1])  # biasing factor dependent on direction j
+        Mj = np.ones(self.coeffDir.shape[1])  # biasing factor dependent on direction j
+
+        sij = self.Sij(VarCoeffSpk, self.coeffDir, self.cfg.NPOINTS)
+        pressure, V, energyD, J, Vradial, Jradial, Vtang, Jtang = self.physDir(sij, self.cfg.phiTest, self.cfg.thetaTest)
+
+        # weighting functions
+        if self.cfg.WFRONT: Wj = Wj * self.cfg.WfrontVec  # maybe it's better if you calculate Wfront Wplane and Wbinary outside the function, so that you calculate them only once...
+        if self.cfg.WPLANE: Wj = Wj * self.cfg.WplaneVec
+        if self.cfg.WBIN:   Wj = Wj * self.cfg.WbinVec
+        if self.cfg.WAUTOREM: Mj = Mj * self.cfg.WremVec
+        if self.cfg.WFRONT or self.cfg.WPLANE or self.cfg.WBIN: Wj = Wj * float(len(Wj)) / sum(Wj)
+
+        if self.cfg.DEC == 'basic':
+            Tpressure = ((1. - pressure) ** 2 * Wj * Mj) / self.cfg.NPOINTS
+            TVlon = ((1. - Vradial) ** 2 * Wj * Mj) / self.cfg.NPOINTS
+            TVtang = ((Vtang) ** 2 * Wj * Mj) / self.cfg.NPOINTS
+            Tvar = 0
+            Tpressure2 = 0
+            TVlon2 = 0
+            TVtang2 = 0
+
+            TenergyD = ((1. - energyD) ** 2 * Wj * Mj) / self.cfg.NPOINTS
+            # TenergyD = ((1.-energyD)**2*Wj*Mj*2)/self.cfg.NPOINTS
+            TJrad = ((1. - Jradial) ** 2 * Wj * Mj) / self.cfg.NPOINTS
+            TJtang = ((Jtang) ** 2 * Wj * Mj) / self.cfg.NPOINTS
+
+            if self.cfg.PREFHOM:
+                Tvar = np.var(VarCoeffSpk[0]) / (np.mean(VarCoeffSpk[0])) ** 2
+
+            if (self.cfg.WAUTOREM or self.cfg.WBIN):
+                Tpressure2 = (~self.cfg.WremVec) * ((0.5 - pressure) ** 2 * Wj) / self.cfg.NPOINTS  # Pressure -3 dB
+                TVlon2 = (~self.cfg.WremVec) * ((1. - Vradial) ** 2 * Wj) / self.cfg.NPOINTS
+                TVtang2 = (~self.cfg.WremVec) * ((Vtang) ** 2 * Wj) / self.cfg.NPOINTS
+
+            target = np.sum(self.cfg.CP * (Tpressure + Tpressure2) +
+                            + self.cfg.CR * (TVlon + 0.1 * TVlon2)
+                            + self.cfg.CT * (TVtang + 0.1 * TVtang2)
+                            + self.cfg.CPH * TJrad + self.cfg.CPH * TJtang + self.cfg.CPH * TenergyD) + self.cfg.CV * Tvar
+
+        elif self.cfg.DEC == 'maxRe' or self.cfg.DEC == 'mixed':
+            TenergyD = ((1. - energyD) ** 2 * Wj * Mj) / self.cfg.NPOINTS
+            TJrad = ((1. - Jradial) ** 2 * Wj * Mj) / self.cfg.NPOINTS
+            TJtang = ((Jtang) ** 2 * Wj * Mj) / self.cfg.NPOINTS
+            Tvar = 0
+            TJrad2 = 0
+            TenergyD2 = 0
+            TJtang2 = 0
+            if self.cfg.PREFHOM:
+                Tvar = np.var(VarCoeffSpk[0]) / (np.mean(VarCoeffSpk[0])) ** 2
+            if (self.cfg.WAUTOREM or self.cfg.WBIN):
+                TenergyD2 = (~self.cfg.WremVec) * ((0.5 - energyD) ** 2 * Wj) / self.cfg.NPOINTS  # Energy -3 dB
+                TJrad2 = (~self.cfg.WremVec) * ((1. - Jradial) ** 2 * Wj) / self.cfg.NPOINTS
+                TJtang2 = (~self.cfg.WremVec) * ((Jtang) ** 2 * Wj) / self.cfg.NPOINTS
+                # ~array : negation of an array of bools
+
+            target = np.sum(
+                self.cfg.CE * (TenergyD + TenergyD2) + self.cfg.CR * (TJrad + 0.1 * TJrad2) + self.cfg.CT * (TJtang + 0.1 * TJtang2)) + self.cfg.CV * Tvar
+
+        elif self.cfg.DEC == 'phase':
+            TenergyD = ((1. - energyD) ** 2 * Wj) / self.cfg.NPOINTS
+            TJrad = ((1. - Jradial) ** 2 * Wj * Mj) / self.cfg.NPOINTS
+            TJtang = ((Jtang) ** 2 * Wj * Mj) / self.cfg.NPOINTS
+            Tvar = 0
+            if self.cfg.PREFHOM:
+                Tvar = np.var(VarCoeffSpk[0]) / (np.mean(VarCoeffSpk[0])) ** 2
+            ToppGain = np.linalg.norm(self.oppGain(sij)) ** 2 / self.cfg.NPOINTS
+
+            target = np.sum(self.cfg.CE * TenergyD + self.cfg.CR * TJrad + self.cfg.CT * TJtang) \
+                            + self.cfg.CPH * ToppGain * self.cfg.CV * Tvar
+            # FIXME: missing some extra factors (see dani's paper page 5)
+        else:
+            target = 0
+            raise ValueError("The decoding you chose is not implemented.")
+        return target
+
+    # with nlopt you can also write linear and non linear constraints... have a look at the reference
+    # http://ab-initio.mit.edu/wiki/index.php/NLopt_Python_Reference
+    def eqconstr(self, result, x, grad):
+        if grad.size > 0:
+            print "gradient to be implemented"
+
+        nodes = self.amb.get_ambisonic_coeff(self.PHI, self.THETA, 'basic', self.DEG, 0)  # calculates the coefficients in the basic or naive scheme.
+        # These values are used to figure out which speakers lay in the nodes of some spherical harmonic
+        for i in range((self.DEG + 1) ** 2 * self.NSPK):
+            if np.asarray(abs(nodes) < 10e-8).reshape(1, ((self.DEG + 1) ** 2 * self.NSPK))[0, i]:
+                result[i] = x[i]  # putting to zero the speakers that are in a node of a SH
+        return
+
+    def inconstr(self, result, x, grad):
+        if grad.size > 0:
+            print "gradient to be implemented"
+
+        nodes = self.amb.get_ambisonic_coeff(self.PHI, self.THETA, 'basic', self.DEG, 0)  # calculates the coefficients in the basic or naive scheme.
+        # These values are used to figure out which speakers lay in the nodes of some spherical harmonic
+        for i in range((self.DEG + 1) ** 2 * self.NSPK):
+            if np.asarray(nodes > 0.).reshape(1, ((self.DEG + 1) ** 2 * self.NSPK))[0, i]: result[i] > x[i]  # keeping the sign
+            if np.asarray(nodes < 0.).reshape(1, ((self.DEG + 1) ** 2 * self.NSPK))[0, i]: result[i] < x[i]  # keeping the sign
+        return
+
+    def downscalematrix(self, CoeffMat, matched):
+        '''
+        * here we need two things:
+        * - the matrix of coefficients that we want to downscale
+        * - the vector of paired speakers
+        *
+        * The downscaled (shrinked) matrix will be our output here
+        '''
+        ResShrinked = CoeffMat.T
         for idx, spki in enumerate(matched):
-            if (idx == 0) : 
-                ResUp = ResShrinked.T[counter]
-                counter += 1
-                continue
+            if (spki >= 0):
+                # the new matrix has to have the idx rows only
+                if (idx == 0):
+                    ResShrinked = CoeffMat.T[idx]
+                else:
+                    ResShrinked = np.vstack((ResShrinked, CoeffMat.T[idx]))
+        if self.MATCHSPK:
+            return ResShrinked.T
+        else:
+            return CoeffMat
 
-            if (spki >= 0): 
-               # if (idx == 0) : 
-               #     ResUp = ResShrinked.T[counter]
-               # else:
-               #     # the new matrix has to have the idx rows only
-               #     ResUp = np.vstack((ResUp, ResShrinked.T[counter]))
-                
-                ResUp = np.vstack((ResUp, ResShrinked.T[counter]))
-                counter += 1
-        
-            elif (spki < 0):
-                # search for the matched speaker
-                # (which is the one labelled with positive spki)
-                #wantedrow = np.argwhere(matched[matched>=0] == abs(matched[idx]))[0][0] # slow version
-                wantedrow = MAP[-spki-1] # faster version
-                ResUp = np.vstack((ResUp, ResShrinked.T[wantedrow]*SIGNSvec)) # multiply with vetor of signs
-            else: sys.exit("Ehm ... this is impossible! [upscalematrix function]")
-        
-        if MATCHSPK: return ResUp.T
-        else: return ResShrinked
+    def upscalematrix(self, ResShrinked, matched):
+        """
+        * here we need three things:
+        * - the matrix of coefficients that we want to downscale
+        * - the vector of paired speakers
+        * - the vector of SH signs that change with left/right symmetry
+        *
+        * The upscaled matrix will be our output here
+        """
 
+        ResUp = ResShrinked.T
+        if (np.shape(ResShrinked) == ((self.DEG + 1) ** 2, self.NSPK)) or (np.shape(ResShrinked) == ((self.DEG * 2 + 1), self.NSPK)):
+            return ResShrinked
 
+        else:
+            counter = 0  # you don't strictly need a counter, you can use len(shrinked) ... I guess
+
+            for idx, spki in enumerate(matched):
+                if (idx == 0):
+                    ResUp = ResShrinked.T[counter]
+                    counter += 1
+                    continue
+
+                if (spki >= 0):
+                    ResUp = np.vstack((ResUp, ResShrinked.T[counter]))
+                    counter += 1
+
+                elif (spki < 0):
+                    # search for the matched speaker
+                    # (which is the one labelled with positive spki)
+                    positive_match = matched[matched >= 0]
+                    (wanted_idx, wanted_val) = [(jdx, val) for jdx, val in enumerate(positive_match) if val == abs(spki)][0]
+                    ResUp = np.vstack((ResUp, ResShrinked.T[wanted_idx] * self.cfg.SIGNSvec))  # multiply with vector of signs
+                else:
+                    raise ValueError("Ehm ... this is impossible! [upscalematrix function]")
+
+            if self.MATCHSPK:
+                return ResUp.T
+            else:
+                return ResShrinked
