@@ -43,18 +43,20 @@ parser.add_argument('-HF', '--hf-matrix', type=str, dest='hf_results_file', defa
 parser.add_argument('-jr', '--jack_routing', type=str, dest='speaker_order', default='',
                     help='Change the order of speakers from the one you entered in ini file. '
                          'A possible string could be "4 1 3 2 5"')
-parser.add_argument('-os', '--output_scale', type=str, dest='output_scale', default='N3D',
+parser.add_argument('-outs', '--output_scale', type=str, dest='output_scale', default='n3d',
                     help='Default normalization is N3D. You can ask to change it by specifying '
                          'the destination convention. '
                          '\nAvailable: "N3D" "SN3D" "MaxN" "FuMa" "SN2D" "N2D" ')
-parser.add_argument('-is', '--input_scale', type=str, dest='input_scale', default='fuma',
+parser.add_argument('-ins', '--input_scale', type=str, dest='input_scale', default='fuma',
                     help='Default normalization is N3D. You can ask to change it by specifying '
                          'the destination convention. '
                          '\nAvailable: "N3D" "SN3D" "MaxN" "FuMa" "SN2D" "N2D" ')
-parser.add_argument('-of', '--output_filename', type=str, dest='output_filename', default='idhoa.ambdec',
+parser.add_argument('-of', '--output_filename', type=str, dest='output_filename', default='idhoa',
                     help='Name of the Ambdec configuration file.')
 
 args = parser.parse_args()
+output_scale = args.output_scale
+input_scale = args.input_scale
 
 
 # threed_polar_plot(az,el,ra)
@@ -71,9 +73,6 @@ if args.speaker_order != '' :
 else :
     spkord = range(1, len(LF.PHI)+1)
 
-
-# Writing ambdec configuration file
-outf = open(args.output_filename, 'w')
 
 if LF.DEG != HF.DEG:
     raise ValueError("The two idhoa files produce decodings at different orders (LF:%d, HF:%d)."
@@ -116,27 +115,69 @@ conv = Conventions(DEG)
 # TODO
 # e.g.# hf_mat = ResCoeff.T*conv.shrink(conv.fuma.n2d)
 
-mask = ""
-if nD == '2D':
-    if DEG == 1:
-        mask = "b"
-    if DEG == 2:
-        mask = "11b"
-    if DEG == 3:
-        mask = "831b"
-    if DEG > 3:
-        mask = "dontknow!"
-elif nD == '3D':
-    if DEG == 1:
-        mask = "f"
-    if DEG == 2:
-        mask = "1ff"
-    if DEG == 3:
-        mask = "ffff"
-else:
-    raise ValueError("The dimensionality of the problem is unknown: %s. Should be 2D or 3D." % nD)
 
-h1 = '''# AmbDec configuration
+def write_ambix():
+    out_ambix = open(args.output_filename+'_ambix.config', 'w')
+
+    debug_msg = LF.case
+    # matrix_str = np.array2string(hf_mat, separator='  ')
+    # matrix_str = matrix_str.replace('[[ ', '')
+    # matrix_str = matrix_str.replace('[', '')
+    # matrix_str = matrix_str.replace(']', '')
+
+
+    header = '''# GLOBAL
+/global_hrtf_gain 1
+/debug_msg %s
+/coeff_scale %s
+/coeff_seq acn
+/flip 0
+#END
+
+#HRTF
+#END
+
+#DECODERMATRIX''' % (debug_msg, output_scale)
+
+    print header
+    out_ambix.write(header)
+
+    matrix_str = ""
+    for row in range(len(lf_mat)):
+        for column, val in enumerate(lf_mat[row]):
+            matrix_str += "%.6f   " % val
+        print matrix_str
+        out_ambix.write(matrix_str + "\n")
+        matrix_str = ""
+
+    print '#END'
+    out_ambix.write('#END')
+
+def write_ambdec():
+    # Writing ambdec configuration file
+    outf = open(args.output_filename+'_ambdec.ambdec', 'w')
+
+    mask = ""
+    if nD == '2D':
+        if DEG == 1:
+            mask = "b"
+        if DEG == 2:
+            mask = "11b"
+        if DEG == 3:
+            mask = "831b"
+        if DEG > 3:
+            mask = "dontknow!"
+    elif nD == '3D':
+        if DEG == 1:
+            mask = "f"
+        if DEG == 2:
+            mask = "1ff"
+        if DEG == 3:
+            mask = "ffff"
+    else:
+        raise ValueError("The dimensionality of the problem is unknown: %s. Should be 2D or 3D." % nD)
+
+    h1 = '''# AmbDec configuration
 # Written by write_ambdec.py
 
 /description     5.1 idhoa decoder 
@@ -157,48 +198,52 @@ h1 = '''# AmbDec configuration
 
 /speakers/{ ''' % (mask, NSPK, args.input_scale)
 
-print h1
-outf.write(h1+"\n")
+    print h1
+    outf.write(h1+"\n")
 
-string = ""
-for jj,spkname in enumerate(spkord):
-    print "add_spkr    %s    %.3f    %.5f    %.5f    system:playback_%d" % (LF.label[jj], LF.radius[jj], LF.grad_az[jj], LF.grad_el[jj], spkname)
-    string = "add_spkr    %s    %.3f    %.5f    %.5f    system:playback_%d" % (LF.label[jj], LF.radius[jj], LF.grad_az[jj], LF.grad_el[jj], spkname)
-    outf.write(string+"\n")
     string = ""
+    for jj,spkname in enumerate(spkord):
+        print "add_spkr    %s    %.3f    %.5f    %.5f    system:playback_%d" % (LF.label[jj], LF.radius[jj], LF.grad_az[jj], LF.grad_el[jj], spkname)
+        string = "add_spkr    %s    %.3f    %.5f    %.5f    system:playback_%d" % (LF.label[jj], LF.radius[jj], LF.grad_az[jj], LF.grad_el[jj], spkname)
+        outf.write(string+"\n")
+        string = ""
 
-h2 = '''/}
+    h2 = '''/}
 
 /lfmatrix/{
 order_gain     1.00000  1.00000  1.00000  1.00000'''
-print h2
-outf.write(h2+"\n")
+    print h2
+    outf.write(h2+"\n")
 
-string = ""
-for row in range(len(lf_mat)):
-    for column,val in  enumerate(lf_mat[row]):
-        string += "   %.6f" % val
-    print "add_row " +string
-    outf.write("add_row " +string+"\n")
     string = ""
+    for row in range(len(lf_mat)):
+        for column,val in  enumerate(lf_mat[row]):
+            string += "   %.6f" % val
+        print "add_row " +string
+        outf.write("add_row " +string+"\n")
+        string = ""
 
-h3 = '''/}
+    h3 = '''/}
 
 /hfmatrix/{
 order_gain     1.00000  1.00000  1.00000  1.00000'''
-print h3
-outf.write(h3+"\n")
+    print h3
+    outf.write(h3+"\n")
 
-for row in range(len(hf_mat)):
-    for column, val in  enumerate(hf_mat[row]):
-        string += "   %.6f" % val
-    print "add_row " +string
-    outf.write("add_row " +string+"\n")
-    string = ""
+    for row in range(len(hf_mat)):
+        for column, val in  enumerate(hf_mat[row]):
+            string += "   %.6f" % val
+        print "add_row " +string
+        outf.write("add_row " +string+"\n")
+        string = ""
 
 
-h4 = '''/}
+    h4 = '''/}
 
 /end'''
-print h4
-outf.write(h4+"\n")
+    print h4
+    outf.write(h4+"\n")
+
+
+write_ambdec()
+write_ambix()
