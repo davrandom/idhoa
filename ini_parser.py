@@ -150,7 +150,7 @@ class ConfigConstants:
         thetat = []
         for i, valpi in enumerate(self.phiTest):
             for j, valpj in enumerate(self.PHI):
-                if aux.angular_distance(self.phiTest[i], valpi, valpj, self.THETA[j]) < mean_spk_dist * 1.0:
+                if aux.angular_distance(valpi, self.thetaTest[i], valpj, self.THETA[j]) < mean_spk_dist * 1.0:
                     phit.append(self.phiTest[i])
                     thetat.append(self.thetaTest[i])
                     break
@@ -161,7 +161,7 @@ class ConfigConstants:
         wvect = []
         for i, valpi in enumerate(self.phiTest):
             for j, valpj in enumerate(self.PHI):
-                if aux.angular_distance(self.phiTest[i], valpi, valpj, self.THETA[j]) < mean_spk_dist * 1.0:
+                if aux.angular_distance(valpi, self.thetaTest[i], valpj, self.THETA[j]) < mean_spk_dist * 1.0:
                     temp = True
                     # temp = 1
                     break
